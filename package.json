@@ -1,0 +1,17 @@
+{
+  "name": "molam-id",
+  "version": "0.1.0",
+  "description": "Molam ID - Brique 1 (fastify + postgres)",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "argon2": "^0.30.0",
+    "dotenv": "^16.0.0",
+    "fastify": "^4.0.0",
+    "jsonwebToken": "^9.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "pg": "^8.0.0"
+  }
+}
