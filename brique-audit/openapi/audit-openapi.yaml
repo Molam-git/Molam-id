@@ -1,0 +1,63 @@
+openapi: 3.0.3
+info:
+  title: Molam Audit API
+  version: 1.0.0
+servers:
+  - url: https://audit.molam.com
+paths:
+  /api/audit/query:
+    post:
+      summary: Query audit events (RBAC restricted)
+      security:
+        - mTLS: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from: { type: string, format: date-time }
+                to: { type: string, format: date-time }
+                event_type: { type: array, items: { type: string } }
+                module: { type: array, items: { type: string } }
+                actor_id: { type: string, format: uuid }
+                limit: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hits: { type: array, items: { type: object } }
+
+  /api/audit/verify:
+    post:
+      summary: Verify event hash & signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event_id: { type: string }
+                  hash_ok: { type: boolean }
+                  signature_ok: { type: boolean }
+                  merkle_ok: { type: boolean }
+
+components:
+  securitySchemes:
+    mTLS:
+      type: mutualTLS

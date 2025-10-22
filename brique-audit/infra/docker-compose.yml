@@ -1,0 +1,133 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: molam_audit
+      POSTGRES_USER: molam
+      POSTGRES_PASSWORD: molam_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql # ← CHEMIN CORRECT
+
+  audit-writer:
+    build:
+      context: ../services/audit-writer
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres:5432/molam_audit
+      KAFKA_BROKERS: kafka:9092
+      AUDIT_TOPIC: molam.audit.events
+      KMS_KEY_ID: local
+      USE_AWS_KMS: "false"
+    depends_on:
+      - postgres
+      - kafka
+
+  batch-uploader:
+    build:
+      context: ../services/batch-uploader
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres:5432/molam_audit
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: molam-audit
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      KMS_KEY_ID: local
+    depends_on:
+      - postgres
+      - minio
+
+  indexer:
+    build:
+      context: ../services
+      dockerfile: indexer/Dockerfile
+    restart: always
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres:5432/molam_audit
+      KAFKA_BROKERS: kafka:9092
+      AUDIT_TOPIC: molam.audit.events
+      SEARCH_ENGINE_URL: http://opensearch:9200
+    depends_on:
+      - postgres
+      - kafka
+      - opensearch
+
+  minio:
+    image: minio/minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  opensearch:
+    image: opensearchproject/opensearch:2.9.0
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      "OPENSEARCH_JAVA_OPTS": "-Xms512m -Xmx512m"
+      plugins.security.disabled: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.10.0
+    ports:
+      - "5601:5601"
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+    depends_on:
+      - opensearch
+
+  verifier:
+    build:
+      context: ../services/verifier
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres:5432/molam_audit
+    ports:
+      - "4100:4100"
+    depends_on:
+      - kafka
+      - postgres
+
+networks:
+  default:
+    name: infra-network
+
+volumes:
+  pgdata:
+  miniodata:
