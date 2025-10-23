@@ -1,24 +1,47 @@
-version: '3.9'
-
 services:
   db:
-    image: postgres:16
-    restart: always
+    image: postgres:15
+    container_name: molam
     environment:
-      POSTGRES_DB: molam
       POSTGRES_USER: molam
       POSTGRES_PASSWORD: molam_pass
+      POSTGRES_DB: molam
     ports:
       - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U molam"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  adminer:
-    image: adminer
-    restart: always
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: molam_api
     ports:
-      - "8080:8080"
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=molam
+      - DB_PASSWORD=molam_pass
+      - DB_NAME=molam
+      - JWT_SECRET=${JWT_SECRET:-votre_secret_jwt_super_securise}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-votre_refresh_secret_super_securise}
+      - PORT=3000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./package.json:/app/package.json
 
 volumes:
-  db_data:
+  postgres_data:
+
+

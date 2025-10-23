@@ -1,104 +1,71 @@
--- =====================================================
--- Molam ID — Brique 2 : Tables de support et Auth de base
--- =====================================================
--- Auteur : Malang Coulibaly
--- Date : 2025-10-19
--- =====================================================
-
--- 1️⃣ Table des rôles et permissions
+-- Table des rôles
 CREATE TABLE IF NOT EXISTS molam_roles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES molam_users(id) ON DELETE CASCADE,
-  module TEXT NOT NULL,                      -- ex: id, pay, shop, eat, ads
-  role TEXT NOT NULL,                        -- ex: client, merchant, admin
-  scope JSONB DEFAULT '{}'::jsonb,           -- détails fins d’autorisation
-  trusted_level INTEGER DEFAULT 0,
-  granted_by UUID,
-  granted_at TIMESTAMPTZ DEFAULT now()
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES molam_users(id) ON DELETE CASCADE,
+    module VARCHAR(50) NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_molam_roles_user ON molam_roles(user_id);
-CREATE INDEX IF NOT EXISTS idx_molam_roles_module ON molam_roles(module);
 
--- 2️⃣ Méthodes d’authentification
-CREATE TABLE IF NOT EXISTS molam_user_auth (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES molam_users(id) ON DELETE CASCADE,
-  auth_type TEXT NOT NULL,                 -- password, otp, oauth, webauthn
-  provider TEXT,                           -- google, apple, sms, etc.
-  credential_id TEXT,                      -- identifiant externe ou clé publique
-  created_at TIMESTAMPTZ DEFAULT now(),
-  last_seen_at TIMESTAMPTZ,
-  device_info JSONB,
-  is_active BOOLEAN DEFAULT TRUE
-);
-CREATE INDEX IF NOT EXISTS idx_molam_user_auth_user ON molam_user_auth(user_id);
-CREATE INDEX IF NOT EXISTS idx_molam_user_auth_type ON molam_user_auth(auth_type);
-
--- 3️⃣ Sessions utilisateurs (refresh tokens)
+-- Table des sessions
 CREATE TABLE IF NOT EXISTS molam_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES molam_users(id) ON DELETE CASCADE,
-  device_id TEXT,
-  refresh_token_hash TEXT NOT NULL,          -- hashé avec SHA-256
-  ip_address TEXT,
-  user_agent TEXT,
-  expires_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  last_used_at TIMESTAMPTZ
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES molam_users(id) ON DELETE CASCADE,
+    refresh_token_hash TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    revoked_at TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_molam_sessions_user ON molam_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_molam_sessions_expires ON molam_sessions(expires_at);
 
--- 4️⃣ Tokens révoqués
-CREATE TABLE IF NOT EXISTS molam_revoked_tokens (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  refresh_token_hash TEXT NOT NULL,
-  revoked_at TIMESTAMPTZ DEFAULT now(),
-  reason TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_revoked_tokens_hash ON molam_revoked_tokens(refresh_token_hash);
-
--- 5️⃣ Audit logs (journalisation immuable)
+-- Table des logs d'audit
 CREATE TABLE IF NOT EXISTS molam_audit_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  actor UUID,                                  -- l’utilisateur ou le service à l’origine
-  action TEXT NOT NULL,                        -- ex: signup, login, logout, refresh
-  target_id UUID,                              -- objet concerné
-  meta JSONB,                                  -- informations additionnelles
-  created_at TIMESTAMPTZ DEFAULT now()
+    id SERIAL PRIMARY KEY,
+    actor INTEGER REFERENCES molam_users(id) ON DELETE SET NULL,
+    action VARCHAR(50) NOT NULL,
+    target_id INTEGER,
+    meta JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_audit_actor ON molam_audit_logs(actor);
-CREATE INDEX IF NOT EXISTS idx_audit_action ON molam_audit_logs(action);
 
--- 6️⃣ Documents KYC
-CREATE TABLE IF NOT EXISTS molam_kyc_docs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES molam_users(id) ON DELETE CASCADE,
-  doc_type TEXT NOT NULL,                     -- ex: ID_CARD, PASSPORT, SELFIE
-  storage_path TEXT NOT NULL,                 -- chemin (S3, MinIO, etc.)
-  storage_key_id TEXT,
-  content_hash TEXT NOT NULL,                 -- hash SHA256 du fichier
-  ocr_data JSONB,                             -- données OCR optionnelles
-  status TEXT DEFAULT 'pending',              -- pending, verified, rejected
-  uploaded_at TIMESTAMPTZ DEFAULT now()
+-- Table des tokens révoqués
+CREATE TABLE IF NOT EXISTS molam_revoked_tokens (
+    id SERIAL PRIMARY KEY,
+    token_jti VARCHAR(255) UNIQUE NOT NULL,
+    revoked_at TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_kyc_user ON molam_kyc_docs(user_id);
-CREATE INDEX IF NOT EXISTS idx_kyc_status ON molam_kyc_docs(status);
 
--- 7️⃣ Codes de vérification (OTP, USSD, email)
+-- Table des codes de vérification
 CREATE TABLE IF NOT EXISTS molam_verification_codes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES molam_users(id) ON DELETE CASCADE,
-  phone TEXT,
-  email TEXT,
-  code_hash TEXT NOT NULL,                    -- Argon2id hash du code
-  channel TEXT NOT NULL,                      -- sms, email, ussd
-  purpose TEXT NOT NULL,                      -- signup, reset, verify
-  nonce TEXT,
-  expires_at TIMESTAMPTZ NOT NULL,
-  attempts INT DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES molam_users(id) ON DELETE CASCADE,
+    code VARCHAR(10) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_codes_user ON molam_verification_codes(user_id);
-CREATE INDEX IF NOT EXISTS idx_codes_purpose ON molam_verification_codes(purpose);
-CREATE INDEX IF NOT EXISTS idx_codes_expires ON molam_verification_codes(expires_at);
+
+-- Table d'authentification utilisateur
+CREATE TABLE IF NOT EXISTS molam_user_auth (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES molam_users(id) ON DELETE CASCADE,
+    provider VARCHAR(50) NOT NULL,
+    provider_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Table des documents KYC
+CREATE TABLE IF NOT EXISTS molam_kyc_docs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES molam_users(id) ON DELETE CASCADE,
+    doc_type VARCHAR(50) NOT NULL,
+    doc_url TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT NOW(),
+    verified_at TIMESTAMP
+);
+
+-- Index pour améliorer les performances
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON molam_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_actor ON molam_audit_logs(actor);
+CREATE INDEX IF NOT EXISTS idx_verification_user ON molam_verification_codes(user_id);

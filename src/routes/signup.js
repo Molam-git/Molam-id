@@ -1,27 +1,69 @@
 import { pool } from "../db.js";
-import { hashPassword } from "../utils/crypto.js";
-import { createToken } from "../utils/jwt.js";
+import { hashPassword, generateMolamId, generateRefreshToken, hashRefreshToken } from "../utils/crypto.js";
+import { signAccessToken } from "../utils/tokens.js";
 
-export default async function signupRoutes(fastify) {
-  fastify.post("/api/signup", async (req, reply) => {
-    try {
-      const { phone, email, password } = req.body;
-      if (!phone && !email) return reply.code(400).send({ error: "phone or email required" });
-      if (!password) return reply.code(400).send({ error: "password required" });
+export async function signup(req, res) {
+  const { email, phone, password } = req.body;
 
-      const hashed = await hashPassword(password);
-      const molam_id = "MOLAM-SN-" + Math.floor(Math.random() * 10000000).toString().padStart(8, "0");
+  if (!email || !phone || !password) {
+    return res.status(400).json({ error: "Email, téléphone et mot de passe requis" });
+  }
 
-      const { rows } = await pool.query(
-        "INSERT INTO molam_users (molam_id, phone_e164, email, password_hash, status) VALUES ($1,$2,$3,$4,'active') RETURNING id, molam_id",
-        [molam_id, phone || null, email || null, hashed]
-      );
+  try {
+    // Hash du mot de passe
+    const passwordHash = await hashPassword(password);
+    const molamId = generateMolamId();
 
-      const token = createToken({ user_id: rows[0].id, molam_id: rows[0].molam_id });
-      return reply.send({ molam_id: rows[0].molam_id, access_token: token });
-    } catch (err) {
-      fastify.log.error(err);
-      return reply.code(500).send({ error: "internal_error" });
+    // Insertion de l'utilisateur
+    const userResult = await pool.query(
+      `INSERT INTO molam_users (molam_id, phone_e164, email, password_hash, status)
+       VALUES ($1, $2, $3, $4, 'active') RETURNING id, molam_id`,
+      [molamId, phone, email, passwordHash]
+    );
+
+    const userId = userResult.rows[0].id;
+    const finalMolamId = userResult.rows[0].molam_id;
+
+    // Création du rôle
+    await pool.query(
+      `INSERT INTO molam_roles (user_id, module, role) VALUES ($1, 'id', 'client')`,
+      [userId]
+    );
+
+    // Génération des tokens
+    const { token: accessToken } = signAccessToken({
+      user_id: userId,
+      molam_id: finalMolamId,
+      roles: ['client']  // Rôle par défaut
+    });
+    const refreshToken = generateRefreshToken();
+    const refreshTokenHash = await hashRefreshToken(refreshToken);
+
+    // Enregistrement de la session
+    await pool.query(
+      `INSERT INTO molam_sessions (user_id, refresh_token_hash) VALUES ($1, $2)`,
+      [userId, refreshTokenHash]
+    );
+
+    // Log d'audit
+    await pool.query(
+      `INSERT INTO molam_audit_logs (actor, action, target_id, meta)
+       VALUES ($1, 'signup', $1, $2)`,
+      [userId, JSON.stringify({ source: "api" })]
+    );
+
+    res.status(201).json({
+      molam_id: finalMolamId,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+  } catch (err) {
+    console.error("Erreur signup:", err);
+    
+    if (err.code === "23505") { // Contrainte unique violée
+      return res.status(409).json({ error: "Email ou téléphone déjà utilisé" });
     }
-  });
+    
+    res.status(500).json({ error: "Erreur lors de l'inscription" });
+  }
 }

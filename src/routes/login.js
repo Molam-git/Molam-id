@@ -1,29 +1,58 @@
 import { pool } from "../db.js";
-import { verifyPassword } from "../utils/crypto.js";
-import { createToken } from "../utils/jwt.js";
+import { generateRefreshToken, hashRefreshToken } from "../utils/crypto.js";
+import { verifyPasswordWithPepper } from "../utils/security.js"; 
+import { generateAccessToken } from "../utils/jwt.js";
 
-export default async function loginRoutes(fastify) {
-  fastify.post("/api/login", async (req, reply) => {
-    try {
-      const { phone, email, password } = req.body;
-      if (!password) return reply.code(400).send({ error: "password required" });
+export async function login(req, res) {
+  const { email, phone, molam_id, password } = req.body;
 
-      const { rows } = await pool.query(
-        "SELECT id, molam_id, password_hash FROM molam_users WHERE phone_e164=$1 OR email=$2",
-        [phone || null, email || null]
-      );
+  if ((!email && !phone && !molam_id) || !password) {
+    return res.status(400).json({ error: "Identifiant (email, téléphone ou MOLAM ID) et mot de passe requis" });
+  }
 
-      if (rows.length === 0) return reply.code(404).send({ error: "User not found" });
-      const user = rows[0];
+  try {
+    // Chercher l'utilisateur par email, phone ou molam_id
+    const result = await pool.query(
+      `SELECT id, molam_id, password_hash FROM molam_users
+       WHERE (email = $1 OR phone_e164 = $2 OR molam_id = $3) AND status = 'active'`,
+      [email || null, phone || null, molam_id || null]
+    );
 
-      const ok = await verifyPassword(user.password_hash, password);
-      if (!ok) return reply.code(401).send({ error: "Invalid password" });
-
-      const token = createToken({ user_id: user.id, molam_id: user.molam_id });
-      reply.send({ access_token: token, molam_id: user.molam_id });
-    } catch (err) {
-      fastify.log.error(err);
-      reply.code(500).send({ error: "internal_error" });
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Identifiants invalides" });
     }
-  });
+
+    const user = result.rows[0];
+    const isValid = await verifyPasswordWithPepper(password, user.password_hash);
+
+    if (!isValid) {
+      return res.status(401).json({ error: "Identifiants invalides" });
+    }
+
+    // Génération des tokens
+    const accessToken = generateAccessToken({ user_id: user.id, molam_id: user.molam_id });
+    const refreshToken = generateRefreshToken();
+    const refreshTokenHash = await hashRefreshToken(refreshToken);
+
+    // Enregistrement de la session
+    await pool.query(
+      `INSERT INTO molam_sessions (user_id, refresh_token_hash) VALUES ($1, $2)`,
+      [user.id, refreshTokenHash]
+    );
+
+    // Log d'audit
+    await pool.query(
+      `INSERT INTO molam_audit_logs (actor, action, target_id, meta)
+       VALUES ($1, 'login', $1, $2)`,
+      [user.id, JSON.stringify({ source: "api" })]
+    );
+
+    res.json({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+  } catch (err) {
+    console.error("Erreur login:", err);
+    res.status(500).json({ error: "Erreur lors de la connexion" });
+  }
 }
