@@ -1,0 +1,117 @@
+version: '3.8'
+
+# Molam AuthZ Stack - Brique 9
+# Complete deployment stack for centralized authorization
+#
+# Services:
+# - authz-api: Authorization decision service
+# - envoy: Reverse proxy with ext_authz integration
+# - postgres: Database (if not already running)
+#
+# Usage:
+#   docker-compose -f infra/docker-compose.authz.yaml up -d
+
+services:
+
+  # ==========================================================================
+  # PostgreSQL Database
+  # ==========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: molam-postgres
+    environment:
+      POSTGRES_DB: molam_id
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - molam-network
+
+  # ==========================================================================
+  # AuthZ API Service
+  # ==========================================================================
+  authz-api:
+    build:
+      context: ../services/authz-api
+      dockerfile: Dockerfile
+    container_name: molam-authz-api
+    environment:
+      PORT: 4300
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: molam_id
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      CACHE_TTL_SECONDS: 300
+      MAX_DECISION_LATENCY_MS: 50
+      SIRA_ENABLED: "false"
+      DEFAULT_POLICY_VERSION: v1.0
+      LOG_LEVEL: info
+    ports:
+      - "4300:4300"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4300/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - molam-network
+
+  # ==========================================================================
+  # Envoy Proxy with ext_authz
+  # ==========================================================================
+  envoy:
+    image: envoyproxy/envoy:v1.28-latest
+    container_name: molam-envoy
+    volumes:
+      - ./envoy-authz.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "8080:8080"  # Main proxy port
+      - "9901:9901"  # Admin interface
+    depends_on:
+      authz-api:
+        condition: service_healthy
+    command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "info"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9901/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - molam-network
+
+  # ==========================================================================
+  # Backend Service (placeholder - replace with actual service)
+  # ==========================================================================
+  backend:
+    image: nginx:alpine
+    container_name: molam-backend
+    ports:
+      - "9000:80"
+    networks:
+      - molam-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  molam-network:
+    driver: bridge

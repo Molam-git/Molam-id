@@ -1,0 +1,240 @@
+# Envoy Proxy Configuration for Molam AuthZ Integration
+# Brique 9 - ext_authz configuration
+#
+# This configuration sets up Envoy as a reverse proxy that:
+# 1. Intercepts all incoming requests
+# 2. Calls the AuthZ service for authorization decisions
+# 3. Forwards authorized requests to backend services
+# 4. Blocks unauthorized requests
+#
+# Usage:
+#   docker run -v $(pwd)/infra:/etc/envoy envoyproxy/envoy:v1.28-latest -c /etc/envoy/envoy-authz.yaml
+
+static_resources:
+
+  # ============================================================================
+  # Listeners - Define ports and protocols Envoy listens on
+  # ============================================================================
+  listeners:
+  - name: listener_http
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8080  # External facing port
+
+    filter_chains:
+    - filters:
+      # HTTP Connection Manager
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          codec_type: AUTO
+
+          # Route configuration
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: molam_services
+              domains: ["*"]
+
+              routes:
+              # Health check endpoint (bypass authz)
+              - match:
+                  prefix: "/health"
+                route:
+                  cluster: service_backend
+                typed_per_filter_config:
+                  envoy.filters.http.ext_authz:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                    disabled: true
+
+              # AuthZ API endpoints (bypass authz for the authz service itself)
+              - match:
+                  prefix: "/v1/authz"
+                route:
+                  cluster: authz_cluster
+                typed_per_filter_config:
+                  envoy.filters.http.ext_authz:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                    disabled: true
+
+              # All other routes require authorization
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: service_backend
+                  timeout: 30s
+
+          # HTTP Filters pipeline
+          http_filters:
+
+          # 1. External Authorization Filter (calls AuthZ service)
+          - name: envoy.filters.http.ext_authz
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+
+              # Use HTTP service for authorization
+              http_service:
+                server_uri:
+                  uri: http://authz-api:4300
+                  cluster: authz_cluster
+                  timeout: 0.5s  # 500ms timeout (fail fast)
+
+                # Path to authorization endpoint
+                path_prefix: "/v1/authz/decide"
+
+                # Authorization request configuration
+                authorization_request:
+                  # Send request headers to authz service
+                  allowed_headers:
+                    patterns:
+                    - exact: "authorization"  # JWT token
+                    - exact: "x-user-id"
+                    - exact: "x-molam-id"
+                    - exact: "x-request-id"
+                    - exact: "user-agent"
+                    - exact: "x-forwarded-for"
+                    - prefix: "x-"
+
+                  # Send request body (limited size)
+                  with_request_body:
+                    max_request_bytes: 8192  # 8KB max
+                    allow_partial_message: true
+
+                  # Custom headers to send to authz service
+                  headers_to_add:
+                  - key: "x-authz-source"
+                    value: "envoy"
+
+                # Authorization response configuration
+                authorization_response:
+                  # Headers to forward from authz response to upstream
+                  allowed_upstream_headers:
+                    patterns:
+                    - exact: "x-user-id"
+                    - exact: "x-molam-id"
+                    - exact: "x-audit-id"
+                    - exact: "x-authz-decision"
+                    - prefix: "x-user-"
+
+                  # Headers to forward from authz response to downstream (client)
+                  allowed_client_headers:
+                    patterns:
+                    - exact: "x-authz-reason"
+                    - exact: "x-audit-id"
+
+              # Failure mode: closed (deny on authz service failure)
+              failure_mode_allow: false
+
+              # Include peer certificate in authz request (for mTLS)
+              include_peer_certificate: true
+
+              # Status on error
+              status_on_error:
+                code: 503  # Service Unavailable
+
+          # 2. Router filter (routes to backend)
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+          # Access logging
+          access_log:
+          - name: envoy.access_loggers.file
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+              path: /dev/stdout
+              format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(X-AUTHZ-DECISION)%\"\n"
+
+  # ============================================================================
+  # Clusters - Define backend services
+  # ============================================================================
+  clusters:
+
+  # Backend service cluster (Molam ID, Pay, Eats, etc.)
+  - name: service_backend
+    type: LOGICAL_DNS
+    connect_timeout: 1s
+    dns_lookup_family: V4_ONLY
+
+    load_assignment:
+      cluster_name: service_backend
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: backend  # DNS name or IP
+                port_value: 9000  # Backend service port
+
+    # Health checking
+    health_checks:
+    - timeout: 1s
+      interval: 10s
+      unhealthy_threshold: 2
+      healthy_threshold: 2
+      http_health_check:
+        path: /health
+
+    # Circuit breaker
+    circuit_breakers:
+      thresholds:
+      - priority: DEFAULT
+        max_connections: 1000
+        max_pending_requests: 1000
+        max_requests: 1000
+        max_retries: 3
+
+  # AuthZ service cluster
+  - name: authz_cluster
+    type: LOGICAL_DNS
+    connect_timeout: 0.5s
+    dns_lookup_family: V4_ONLY
+
+    # High performance settings for AuthZ
+    http2_protocol_options: {}
+
+    load_assignment:
+      cluster_name: authz_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: authz-api  # DNS name or IP
+                port_value: 4300
+
+    # Aggressive health checking (AuthZ must be responsive)
+    health_checks:
+    - timeout: 0.5s
+      interval: 5s
+      unhealthy_threshold: 2
+      healthy_threshold: 1
+      http_health_check:
+        path: /health
+
+    # Circuit breaker for AuthZ
+    circuit_breakers:
+      thresholds:
+      - priority: DEFAULT
+        max_connections: 500
+        max_pending_requests: 500
+        max_requests: 1000
+        max_retries: 2
+
+    # Outlier detection (remove unhealthy instances)
+    outlier_detection:
+      consecutive_5xx: 3
+      interval: 10s
+      base_ejection_time: 30s
+      max_ejection_percent: 50
+
+# ============================================================================
+# Admin interface for monitoring and stats
+# ============================================================================
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901  # Admin interface port
