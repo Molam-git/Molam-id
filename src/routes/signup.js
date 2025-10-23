@@ -1,6 +1,6 @@
 import { pool } from "../db.js";
 import { hashPassword, generateMolamId, generateRefreshToken, hashRefreshToken } from "../utils/crypto.js";
-import { generateAccessToken } from "../utils/jwt.js";
+import { signAccessToken } from "../utils/tokens.js";
 
 export async function signup(req, res) {
   const { email, phone, password } = req.body;
@@ -31,7 +31,11 @@ export async function signup(req, res) {
     );
 
     // Génération des tokens
-    const accessToken = generateAccessToken({ user_id: userId, molam_id: finalMolamId });
+    const { token: accessToken } = signAccessToken({
+      user_id: userId,
+      molam_id: finalMolamId,
+      roles: ['client']  // Rôle par défaut
+    });
     const refreshToken = generateRefreshToken();
     const refreshTokenHash = await hashRefreshToken(refreshToken);
 
