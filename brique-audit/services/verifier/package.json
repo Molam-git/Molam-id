@@ -1,0 +1,13 @@
+{
+  "name":"audit-verifier",
+  "version":"1.0.0",
+  "type":"module",
+  "scripts":{"start":"node src/verify.js"},
+  "dependencies":{
+    "express":"^4.18.0",
+    "pg":"^8.10.0",
+    "aws-sdk":"^2.1360.0",
+    "dotenv":"^16.0.0",
+    "fast-json-stable-stringify":"^2.1.0"
+  }
+}

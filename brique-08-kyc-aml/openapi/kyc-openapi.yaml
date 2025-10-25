@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: Molam KYC/AML API
+  version: 1.0.0
+  description: |
+    KYC/AML automated pipeline for user verification (P1/P2 levels).
+
+    Features:
+    - Document upload (ID, selfie, proof of address)
+    - OCR & data extraction
+    - Liveness & face matching
+    - Sanctions & PEP screening
+    - Risk scoring
+    - Automated decision making
+
+servers:
+  - url: https://api.molam.com
+    description: Production
+  - url: http://localhost:4201
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: kyc-api
+
+  /api/kyc/request:
+    post:
+      summary: Create a KYC request (user)
+      operationId: createKYCRequest
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                requested_level:
+                  type: string
+                  enum: ['P1', 'P2']
+                  description: KYC level requested
+                  default: P1
+                id_front:
+                  type: string
+                  format: binary
+                  description: Front of ID card/passport
+                id_back:
+                  type: string
+                  format: binary
+                  description: Back of ID card
+                selfie:
+                  type: string
+                  format: binary
+                  description: User selfie for face matching
+                proof_address:
+                  type: string
+                  format: binary
+                  description: Proof of address document (P2 only)
+              required:
+                - requested_level
+                - id_front
+                - selfie
+      responses:
+        '201':
+          description: KYC request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: pending
+                  message:
+                    type: string
+        '401':
+          description: Unauthorized
+
+  /api/kyc/{request_id}/status:
+    get:
+      summary: Get KYC status
+      operationId: getKYCStatus
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: KYC request ID
+      responses:
+        '200':
+          description: KYC request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KYCRequest'
+        '404':
+          description: KYC request not found
+
+  /internal/kyc/webhook:
+    post:
+      summary: Internal webhook from OCR/vendor or bank
+      description: Webhook endpoint for receiving vendor callbacks (requires HMAC signature)
+      operationId: kycWebhook
+      parameters:
+        - name: x-kyc-signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: HMAC SHA256 signature (sha256=...)
+        - name: x-kyc-timestamp
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Unix timestamp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_type:
+                  type: string
+                  example: ocr.completed
+                kyc_request_id:
+                  type: string
+                  format: uuid
+                data:
+                  type: object
+      responses:
+        '200':
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          description: Invalid signature
+
+components:
+  schemas:
+    KYCRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        requested_level:
+          type: string
+          enum: [P1, P2]
+        status:
+          type: string
+          enum: [pending, processing, verified, rejected, needs_review]
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token with user identity

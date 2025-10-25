@@ -57,10 +57,10 @@ export async function loginV2(req, res) {
     const user = userResult.rows[0];
 
     // Check if user is active
-    if (user.user_status !== 'active') {
+    if (user.status !== 'active') {
       return res.status(403).json({
         error: 'Account is not active',
-        status: user.user_status
+        status: user.status
       });
     }
 
@@ -70,9 +70,9 @@ export async function loginV2(req, res) {
     if (!passwordMatch) {
       // Log failed login attempt
       await pool.query(
-        `INSERT INTO molam_audit_logs (actor_id, action, metadata)
+        `INSERT INTO molam_audit_logs (actor, action, meta)
          VALUES ($1, $2, $3)`,
-        [user.id, 'login_failed', { reason: 'invalid_password', ip, user_agent: userAgent }]
+        [user.id, 'login_failed', JSON.stringify({ reason: 'invalid_password', ip, user_agent: userAgent })]
       );
 
       return res.status(401).json({ error: 'Invalid credentials' });

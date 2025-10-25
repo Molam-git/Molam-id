@@ -1,0 +1,223 @@
+version: '3.8'
+
+# Docker Compose for complete test environment (Briques 1-9)
+services:
+  # PostgreSQL for main Molam services (Briques 1-6)
+  postgres-main:
+    image: postgres:15-alpine
+    container_name: molam-postgres-main
+    environment:
+      POSTGRES_DB: molam
+      POSTGRES_USER: molam
+      POSTGRES_PASSWORD: molam_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U molam -d molam"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for Audit (Brique 7)
+  postgres-audit:
+    image: postgres:15-alpine
+    container_name: molam-postgres-audit
+    environment:
+      POSTGRES_DB: molam_audit
+      POSTGRES_USER: molam
+      POSTGRES_PASSWORD: molam_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./brique-audit/sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U molam -d molam_audit"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for KYC (Brique 8)
+  postgres-kyc:
+    image: postgres:15-alpine
+    container_name: molam-postgres-kyc
+    environment:
+      POSTGRES_DB: molam_kyc
+      POSTGRES_USER: molam
+      POSTGRES_PASSWORD: molam_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./brique-08-kyc-aml/sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U molam -d molam_kyc"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Kafka & Zookeeper for Audit (Brique 7)
+  zookeeper:
+    image: wurstmeister/zookeeper:3.4.6
+    container_name: molam-zookeeper
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: wurstmeister/kafka:2.12-2.2.1
+    container_name: molam-kafka
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_CREATE_TOPICS: "molam.audit.events:3:1"
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+
+  # MinIO for Audit & KYC (S3-compatible)
+  minio:
+    image: minio/minio
+    container_name: molam-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # OpenSearch for Audit indexing (Brique 7)
+  opensearch:
+    image: opensearchproject/opensearch:2.9.0
+    container_name: molam-opensearch
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      "OPENSEARCH_JAVA_OPTS": "-Xms512m -Xmx512m"
+      plugins.security.disabled: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+
+  # Main Molam API (Briques 1-6)
+  molam-api:
+    build: .
+    container_name: molam-api
+    environment:
+      DB_HOST: postgres-main
+      DB_PORT: 5432
+      DB_USER: molam
+      DB_PASSWORD: molam_pass
+      DB_NAME: molam
+      JWT_SECRET: test_jwt_secret_change_in_prod
+      JWT_REFRESH_SECRET: test_refresh_secret_change_in_prod
+      PORT: 3000
+      NODE_ENV: test
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+    command: npm start
+
+  # Audit verifier API (Brique 7)
+  audit-verifier:
+    build: ./brique-audit/services/verifier
+    container_name: molam-audit-verifier
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres-audit:5432/molam_audit
+      PORT: 4100
+    ports:
+      - "4100:4100"
+    depends_on:
+      postgres-audit:
+        condition: service_healthy
+
+  # Audit writer (Brique 7)
+  audit-writer:
+    build: ./brique-audit/services/audit-writer
+    container_name: molam-audit-writer
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres-audit:5432/molam_audit
+      KAFKA_BROKERS: kafka:9092
+      AUDIT_TOPIC: molam.audit.events
+      KMS_KEY_ID: local
+      USE_AWS_KMS: "false"
+    depends_on:
+      postgres-audit:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  # Audit batch uploader (Brique 7)
+  batch-uploader:
+    build: ./brique-audit/services/batch-uploader
+    container_name: molam-batch-uploader
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres-audit:5432/molam_audit
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: molam-audit
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      UPLOAD_INTERVAL_MS: "15000"
+    depends_on:
+      postgres-audit:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # KYC API (Brique 8)
+  kyc-api:
+    build: ./brique-08-kyc-aml/services/kyc-api
+    container_name: molam-kyc-api
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres-kyc:5432/molam_kyc
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: molam-kyc
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      PORT: 4201
+    ports:
+      - "4201:4201"
+    depends_on:
+      postgres-kyc:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # KYC Processor (Brique 8)
+  kyc-processor:
+    build: ./brique-08-kyc-aml/services/kyc-processor
+    container_name: molam-kyc-processor
+    environment:
+      POSTGRES_DSN: postgres://molam:molam_pass@postgres-kyc:5432/molam_kyc
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: molam-kyc
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      USE_MOCK_OCR: "true"
+      USE_MOCK_LIVENESS: "true"
+      USE_MOCK_SANCTIONS: "true"
+      PROCESS_INTERVAL_MS: "5000"
+    depends_on:
+      postgres-kyc:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+volumes:
+  postgres-main-data:
+  postgres-audit-data:
+  postgres-kyc-data:
+  minio-data:

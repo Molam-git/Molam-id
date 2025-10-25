@@ -163,40 +163,42 @@ async function test3_assignRoles() {
   // Assign 'write' role to client user for 'pay' module
   console.log('DEBUG: testUserId=', testUserId, 'adminUserId=', adminUserId);
   await testQuery(`
-    INSERT INTO molam_roles (user_id, module, access_scope, trusted_level, granted_by)
-    VALUES ($1, $2, $3, $4, $5)
-  `, [testUserId, testModulePay, 'write', 50, adminUserId]);
+    INSERT INTO molam_roles (user_id, module, role, access_scope, trusted_level, granted_by)
+    VALUES ($1, $2, $3, $4, $5, $6)
+  `, [testUserId, testModulePay, 'client', 'write', 50, adminUserId]);
 
   console.log('✅ Assigned write role to client in pay module');
 
   // Assign 'read' role to merchant user for 'eats' module
   await testQuery(`
-    INSERT INTO molam_roles (user_id, module, access_scope, trusted_level, granted_by)
-    VALUES ($1, $2, $3, $4, $5)
-  `, [testUserId2, testModuleEats, 'read', 30, adminUserId]);
+    INSERT INTO molam_roles (user_id, module, role, access_scope, trusted_level, granted_by)
+    VALUES ($1, $2, $3, $4, $5, $6)
+  `, [testUserId2, testModuleEats, 'merchant', 'read', 30, adminUserId]);
 
   console.log('✅ Assigned read role to merchant in eats module');
 
   // Assign 'admin' role to admin user for all modules
   await testQuery(`
-    INSERT INTO molam_roles (user_id, module, access_scope, trusted_level, granted_by)
+    INSERT INTO molam_roles (user_id, module, role, access_scope, trusted_level, granted_by)
     VALUES
-      ($1, 'pay', 'admin', 100, $1),
-      ($1, 'eats', 'admin', 100, $1),
-      ($1, 'id', 'admin', 100, $1)
+      ($1, 'pay', 'admin', 'admin', 100, $1),
+      ($1, 'eats', 'admin', 'admin', 100, $1),
+      ($1, 'id', 'admin', 'admin', 100, $1)
   `, [adminUserId]);
 
   console.log('✅ Assigned admin role to admin user in all modules');
 
-  // Verify roles
+  // Verify roles for our test users only
   const roles = await testQuery(`
-    SELECT user_id, module, access_scope, trusted_level
+    SELECT user_id, module, role, access_scope, trusted_level
     FROM molam_roles
+    WHERE user_id IN ($1, $2, $3)
     ORDER BY trusted_level DESC
-  `);
+  `, [testUserId, testUserId2, adminUserId]);
 
-  assert(roles.rows.length === 5, 'All 5 roles assigned');
-  console.log(`Total roles in system: ${roles.rows.length}`);
+  console.log(`Roles for test users: ${roles.rows.length}`);
+  console.log('Roles:', JSON.stringify(roles.rows, null, 2));
+  assert(roles.rows.length === 5, `Expected 5 roles for test users, got ${roles.rows.length}`);
 }
 
 /**
@@ -208,7 +210,7 @@ async function test4_setAttributes() {
 
   // Set attributes for client user
   await testQuery(`
-    INSERT INTO molam_attributes (user_id, key, value)
+    INSERT INTO molam_attributes (user_id, attribute_key, attribute_value)
     VALUES
       ($1, 'device_type', 'android'),
       ($1, 'country', 'SN'),
@@ -220,7 +222,7 @@ async function test4_setAttributes() {
 
   // Set attributes for merchant user (low SIRA score)
   await testQuery(`
-    INSERT INTO molam_attributes (user_id, key, value)
+    INSERT INTO molam_attributes (user_id, attribute_key, attribute_value)
     VALUES
       ($1, 'device_type', 'ios'),
       ($1, 'country', 'SN'),

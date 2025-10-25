@@ -1,0 +1,16 @@
+{
+  "name":"kyc-api",
+  "version":"1.0.0",
+  "type":"module",
+  "scripts":{
+    "start":"node src/index.js"
+  },
+  "dependencies":{
+    "fastify":"^4.0.0",
+    "@fastify/multipart":"^8.0.0",
+    "pg":"^8.10.0",
+    "aws-sdk":"^2.1360.0",
+    "dotenv":"^16.0.0",
+    "uuid":"^9.0.0"
+  }
+}

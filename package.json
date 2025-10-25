@@ -4,16 +4,31 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "test": "node src/test_runner.js",
+    "test:all": "node src/test_runner.js",
+    "test:brique1": "node src/test_brique1.js",
+    "test:brique2": "node src/test_brique2.js",
+    "test:brique3": "node src/test_brique3.js",
+    "test:brique4": "node src/test_brique4_foundations.js && node src/test_brique4_onboarding.js",
+    "test:brique5": "node src/test_brique5.js",
+    "test:brique6": "node src/test_brique6_authz.js",
+    "test:brique7": "node src/test_brique7.js",
+    "test:brique8": "node src/test_brique8.js",
+    "test:brique9": "node src/test_brique9.js",
+    "test:env:up": "docker-compose -f docker-compose.test.yml up -d",
+    "test:env:down": "docker-compose -f docker-compose.test.yml down",
+    "test:env:logs": "docker-compose -f docker-compose.test.yml logs -f"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "pg": "^8.11.3",
+    "argon2": "^0.31.2",
     "bcrypt": "^5.1.1",
-    "jsonwebtoken": "^9.0.2",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "form-data": "^4.0.4",
+    "jsonwebtoken": "^9.0.2",
     "node-fetch": "^3.3.2",
-    "uuid": "^9.0.1",
-    "argon2": "^0.31.2"
+    "pg": "^8.11.3",
+    "uuid": "^9.0.1"
   }
 }
