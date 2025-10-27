@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: id-mfa
+  namespace: molam
+  labels:
+    app: id-mfa
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: id-mfa
+  template:
+    metadata:
+      labels:
+        app: id-mfa
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8084"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: api
+        image: ghcr.io/molam/id-mfa:sha-{{ .CommitSha }}
+        ports:
+        - containerPort: 8084
+        envFrom:
+        - secretRef:
+            name: id-mfa-secrets
+        - configMapRef:
+            name: id-mfa-config
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8084
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8084
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: id-mfa
+  namespace: molam
+spec:
+  selector:
+    app: id-mfa
+  ports:
+  - port: 80
+    targetPort: 8084
+    protocol: TCP
+  type: ClusterIP
