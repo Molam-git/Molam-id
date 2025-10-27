@@ -1,0 +1,27 @@
+metrics:
+  - name: delegations_active_total
+    type: gauge
+    labels: ['module']
+    query: |
+      SELECT module, COUNT(*) as value 
+      FROM molam_delegations 
+      WHERE status='active' AND (end_at IS NULL OR end_at > NOW())
+      GROUP BY module
+
+  - name: delegations_revoked_total
+    type: counter
+    labels: ['module']
+    query: |
+      SELECT module, COUNT(*) as value 
+      FROM molam_delegations 
+      WHERE status='revoked'
+      GROUP BY module
+
+  - name: delegations_pending_total
+    type: gauge
+    labels: ['module']
+    query: |
+      SELECT module, COUNT(*) as value 
+      FROM molam_delegations 
+      WHERE status='pending'
+      GROUP BY module
