@@ -1,0 +1,281 @@
+openapi: 3.0.0
+info:
+  title: Molam Role Management API
+  version: 1.0.0
+  description: API industrielle pour la gestion des rôles et permissions
+
+servers:
+  - url: https://api.molam.id/v1
+    description: Production server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Role:
+      type: object
+      required: [name, module_scope, trusted_level]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "pay_admin"
+        module_scope:
+          type: string
+          enum: [global, pay, eats, talk, ads, shop, free, id]
+        description:
+          type: string
+          example: "Administrateur de la filiale Pay"
+        trusted_level:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 70
+
+    GrantRequest:
+      type: object
+      required: [user_id, role_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        role_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        require_approval:
+          type: boolean
+          default: false
+
+    GrantResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [granted, pending, already_assigned]
+        request_id:
+          type: string
+          format: uuid
+
+    RevokeRequest:
+      type: object
+      required: [user_id, role_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+
+    RevokeResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [revoked, not_assigned]
+
+    ApproveRequest:
+      type: object
+      required: [request_id, approve]
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        approve:
+          type: boolean
+
+    ApproveResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "forbidden_scope"
+
+paths:
+  /api/id/roles:
+    post:
+      summary: Create or update a role
+      description: |
+        Créer ou mettre à jour un rôle. 
+        Seuls les superadmins peuvent gérer les rôles globaux.
+        Les admins de filiale peuvent gérer les rôles de leur scope.
+      security: 
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Role'
+      responses:
+        "201":
+          description: Role created or updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/id/roles/grants:
+    post:
+      summary: Assign a role to a user
+      description: |
+        Assigner un rôle à un utilisateur. 
+        Requiert une clé d'idempotence pour éviter les doublons.
+        Les rôles avec trusted_level ≥ 80 nécessitent une approbation.
+      security: 
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema: 
+            type: string
+            example: "61a0c2e3-4b5c-4d6e-8f1a-2b3c4d5e6f7a"
+          required: true
+          description: Clé d'idempotence pour éviter les doublons
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantRequest'
+      responses:
+        "201":
+          description: Role granted or pending approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantResponse'
+        "400":
+          description: Invalid input or missing idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden - insufficient permissions or trust level
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Role or user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Already granted / Idempotent replay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/id/roles/grants/revoke:
+    post:
+      summary: Revoke a role from a user
+      description: Révoquer un rôle précédemment assigné à un utilisateur
+      security: 
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeRequest'
+      responses:
+        "200":
+          description: Role revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokeResponse'
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Role or user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/id/roles/grants/approve:
+    post:
+      summary: Approve a pending role grant
+      description: Approuver ou rejeter une demande d'assignation de rôle en attente
+      security: 
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveRequest'
+      responses:
+        "200":
+          description: Request approved or rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproveResponse'
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
