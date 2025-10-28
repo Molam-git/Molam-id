@@ -1,0 +1,25 @@
+{
+    "name": "molam-fx",
+    "version": "1.0.0",
+    "description": "Multidevise conversion system for Molam",
+    "scripts": {
+        "dev": "ts-node-dev src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "test": "jest",
+        "migrate": "node-pg-migrate"
+    },
+    "dependencies": {
+        "crypto": "^1.0.1",
+        "express": "^4.18.0",
+        "pg": "^8.8.0",
+        "uuid": "^9.0.0"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.0",
+        "@types/pg": "^8.15.6",
+        "@types/uuid": "^9.0.0",
+        "ts-node-dev": "^2.0.0",
+        "typescript": "^4.8.0"
+    }
+}
