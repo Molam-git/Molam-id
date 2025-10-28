@@ -1,0 +1,25 @@
+metrics:
+  - name: blacklist_active_total
+    type: gauge
+    labels: ['scope', 'reason']
+    query: |
+      SELECT scope, reason, COUNT(*) as value 
+      FROM molam_blacklist 
+      WHERE status='active' AND (end_at IS NULL OR end_at > NOW())
+      GROUP BY scope, reason
+
+  - name: blacklist_added_total
+    type: counter
+    labels: ['reason']
+    query: |
+      SELECT reason, COUNT(*) as value 
+      FROM molam_blacklist_audit 
+      WHERE action='add'
+      GROUP BY reason
+
+  - name: blacklist_revoked_total
+    type: counter
+    query: |
+      SELECT COUNT(*) as value 
+      FROM molam_blacklist_audit 
+      WHERE action='revoke'
