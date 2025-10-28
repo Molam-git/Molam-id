@@ -1,0 +1,251 @@
+openapi: 3.0.0
+info:
+  title: Molam Admin ID API
+  version: 1.0.0
+  description: API d'administration globale pour superadmins
+
+servers:
+  - url: https://api.molam.id/v1
+    description: Production server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Tenant:
+      type: object
+      required: [code, name, default_currency, timezone, phone_country_code, email_regex, phone_regex]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: "SN"
+        name:
+          type: string
+          example: "Senegal"
+        default_currency:
+          type: string
+          example: "XOF"
+        timezone:
+          type: string
+          example: "Africa/Dakar"
+        phone_country_code:
+          type: string
+          example: "+221"
+        email_regex:
+          type: string
+        phone_regex:
+          type: string
+        is_active:
+          type: boolean
+          default: true
+
+    ModuleUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [enabled, disabled, maintenance, readonly]
+        maintenance_message:
+          type: string
+
+    Policy:
+      type: object
+      required: [module_scope, key, value]
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        module_scope:
+          type: string
+          enum: [global, pay, eats, talk, ads, shop, free, id]
+        key:
+          type: string
+          example: "password.min_length"
+        value:
+          type: object
+
+    Lock:
+      type: object
+      required: [scope, reason, ttl_seconds]
+      properties:
+        scope:
+          type: string
+          enum: [global, tenant, module, role]
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        module_scope:
+          type: string
+          enum: [pay, eats, talk, ads, shop, free, id]
+          nullable: true
+        role_id:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+        ttl_seconds:
+          type: integer
+          minimum: 60
+          maximum: 604800
+
+    KeyRotation:
+      type: object
+      properties:
+        kid:
+          type: string
+        alg:
+          type: string
+        status:
+          type: string
+
+paths:
+  /api/id/admin/tenants:
+    post:
+      summary: Create tenant (country)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Tenant'
+      responses:
+        "201":
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        "400":
+          description: Invalid input
+        "403":
+          description: Forbidden - insufficient permissions
+
+    get:
+      summary: List tenants
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tenant'
+
+  /api/id/admin/tenants/{tenantId}/modules/{module}:
+    patch:
+      summary: Update module status for a tenant
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: module
+          required: true
+          schema:
+            type: string
+            enum: [pay, eats, talk, ads, shop, free, id]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleUpdate'
+      responses:
+        "200":
+          description: Module updated
+        "400":
+          description: Invalid input
+        "403":
+          description: Forbidden
+
+  /api/id/admin/policies:
+    put:
+      summary: Upsert policy (global or per-tenant/module)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Policy'
+      responses:
+        "200":
+          description: Policy upserted
+        "400":
+          description: Invalid input
+        "403":
+          description: Forbidden
+
+  /api/id/admin/locks:
+    post:
+      summary: Create emergency lock (kill-switch)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Lock'
+      responses:
+        "201":
+          description: Lock created
+        "400":
+          description: Invalid input
+        "403":
+          description: Forbidden
+
+  /api/id/admin/keys/rotate:
+    post:
+      summary: Rotate JWT signing key (Vault/HSM orchestration)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "202":
+          description: Rotation started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyRotation'
+        "403":
+          description: Forbidden
+
+  /api/id/admin/audit/export:
+    get:
+      summary: Export admin audit events
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [csv, ndjson]
+      responses:
+        "200":
+          description: Audit export
+        "403":
+          description: Forbidden
