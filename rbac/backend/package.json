@@ -1,0 +1,43 @@
+{
+    "name": "molam-id-backend",
+    "version": "1.0.0",
+    "description": "Backend Molam ID avec RBAC granulaire",
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/server.ts",
+        "build": "tsc",
+        "start": "node dist/server.js",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "type-check": "tsc --noEmit"
+    },
+    "dependencies": {
+        "bcryptjs": "^2.4.3",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "express-rate-limit": "^7.1.5",
+        "express-validator": "^7.0.1",
+        "helmet": "^7.1.0",
+        "jsonwebtoken": "^9.0.2",
+        "pg-promise": "^11.5.4"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.56.1",
+        "@types/bcryptjs": "^2.4.6",
+        "@types/cors": "^2.8.17",
+        "@types/express": "^4.17.21",
+        "@types/jest": "^30.0.0",
+        "@types/jsonwebtoken": "^9.0.5",
+        "@types/node": "^20.19.24",
+        "@types/pg-promise": "^5.4.3",
+        "jest": "^30.2.0",
+        "ts-jest": "^29.4.5",
+        "tsx": "^4.6.0",
+        "typescript": "^5.2.2",
+        "vitest": "^0.34.6"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
