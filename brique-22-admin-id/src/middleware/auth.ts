@@ -1,0 +1,66 @@
+/**
+ * Molam ID - Authentication Middleware
+ */
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import { RequestUser } from '../types';
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: RequestUser;
+    }
+  }
+}
+
+let publicKey: string | null = null;
+
+function getPublicKey(): string {
+  if (!publicKey) {
+    const keyPath = process.env.JWT_PUBLIC_KEY_PATH || './keys/jwt-rs256.pub';
+    try {
+      publicKey = fs.readFileSync(keyPath, 'utf-8');
+    } catch (err) {
+      console.error('Failed to load JWT public key:', err);
+      throw new Error('JWT public key not configured');
+    }
+  }
+  return publicKey;
+}
+
+export function authMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Missing or invalid Authorization header',
+    });
+    return;
+  }
+
+  const token = authHeader.substring(7);
+
+  try {
+    const pubKey = getPublicKey();
+    const decoded = jwt.verify(token, pubKey, {
+      algorithms: ['RS256'],
+      issuer: process.env.JWT_ISSUER || 'https://id.molam.sn',
+    }) as RequestUser;
+
+    req.user = decoded;
+    next();
+  } catch (err: any) {
+    console.error('JWT verification failed:', err.message);
+    res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid or expired token',
+    });
+    return;
+  }
+}

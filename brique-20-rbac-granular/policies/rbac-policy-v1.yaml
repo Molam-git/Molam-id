@@ -1,0 +1,161 @@
+# RBAC Policy Version 1.0
+# GitOps-managed RBAC policies
+# This file is version-controlled and must be signed before deployment
+
+version: "1.0.0"
+published_at: "2025-01-28T00:00:00Z"
+published_by: "system"
+
+# Policy Principles
+principles:
+  - least_privilege: "No implicit permissions"
+  - separation_of_duties: "Auditors cannot be admins"
+  - temporary_access: "Support for expiring role assignments"
+  - audit_all: "All decisions are logged"
+
+# Role Definitions
+roles:
+  # External Users
+  - name: client
+    type: external
+    scope: global
+    description: "Regular user with basic permissions across all modules"
+    permissions:
+      - id.profile.read
+      - id.profile.update
+      - id.export.self
+      - pay.transfer.create
+      - pay.balance.read
+      - pay.transactions.read
+      - eats.order.create
+      - shop.order.create
+      - talk.message.create
+
+  - name: agent
+    type: external
+    scope: pay
+    description: "Cash in/out agent partner"
+    permissions:
+      - pay.cashin.create
+      - pay.cashout.create
+      - pay.transactions.read
+
+  - name: merchant
+    type: external
+    scope: pay
+    description: "Merchant accepting payments"
+    permissions:
+      - pay.transactions.read
+      - pay.balance.read
+      - pay.reports.read
+      - eats.menu.manage
+      - shop.product.create
+
+  - name: bank
+    type: external
+    scope: pay
+    description: "Bank partner with limited reporting"
+    permissions:
+      - pay.reports.read
+
+  # Internal Employees
+  - name: super_admin
+    type: internal
+    scope: global
+    description: "Global administrator"
+    permissions: ["*"]
+
+  - name: pay_admin
+    type: internal
+    scope: pay
+    description: "Pay module administrator"
+    permissions:
+      - "pay.*"
+      - "id.users.read"
+      - "id.audit.read"
+
+  - name: eats_admin
+    type: internal
+    scope: eats
+    description: "Eats module administrator"
+    permissions:
+      - "eats.*"
+      - "id.users.read"
+      - "id.audit.read"
+
+  - name: auditor
+    type: internal
+    scope: global
+    description: "Read-only auditor (requires justification)"
+    permissions:
+      - "*.read"
+      - "*.audit"
+    constraints:
+      - justification_required: true
+
+  - name: support
+    type: internal
+    scope: global
+    description: "Customer support agent"
+    permissions:
+      - id.users.read
+      - id.profile.read
+      - pay.transactions.read
+      - eats.order.read
+      - shop.order.read
+
+# Permission Wildcards
+wildcards:
+  - pattern: "pay.*"
+    expands_to:
+      - pay.transfer.create
+      - pay.transfer.read
+      - pay.transfer.approve
+      - pay.cashin.create
+      - pay.cashout.create
+      - pay.merchant.payment
+      - pay.balance.read
+      - pay.transactions.read
+      - pay.reports.read
+      - pay.admin.manage
+
+  - pattern: "*.read"
+    description: "All read permissions across modules"
+
+  - pattern: "*"
+    description: "All permissions (super_admin only)"
+
+# Constraints
+constraints:
+  - role: auditor
+    requires:
+      - justification: "Audit reason must be provided"
+      - approval: "Manager approval required for sensitive audits"
+
+  - role: bank
+    scope_limitations:
+      - "Can only access aggregated financial reports"
+      - "Cannot access individual user data"
+
+# Security Rules
+security_rules:
+  - name: "No conflicting roles"
+    rule: "Users cannot have both 'auditor' and 'admin' roles"
+    enforcement: "automatic"
+
+  - name: "Temporary admin access"
+    rule: "Admin roles for external parties must have expiration"
+    enforcement: "warning"
+
+  - name: "Separation of duties"
+    rule: "Finance approvers cannot be the same as requesters"
+    enforcement: "automatic"
+
+# Change Log
+changelog:
+  - version: "1.0.0"
+    date: "2025-01-28"
+    changes:
+      - "Initial RBAC policy"
+      - "Defined 11 roles"
+      - "Defined 40+ permissions"

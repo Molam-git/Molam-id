@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molam ID - Authentification Biométrique</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .status-card {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-card h3 {
+            color: #2d3748;
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-card p {
+            color: #718096;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #f7fafc;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-icon {
+            font-size: 24px;
+        }
+
+        .message {
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .message.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #38a169;
+        }
+
+        .message.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .message.info {
+            background: #bee3f8;
+            color: #2c5282;
+            border-left: 4px solid #3182ce;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .features {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .features h3 {
+            color: #2d3748;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-list li {
+            padding: 10px 0;
+            color: #4a5568;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .feature-list li::before {
+            content: "✓";
+            color: #48bb78;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .devices {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .devices h3 {
+            color: #2d3748;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .device-item {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .device-info {
+            flex: 1;
+        }
+
+        .device-name {
+            color: #2d3748;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .device-meta {
+            color: #718096;
+            font-size: 12px;
+        }
+
+        .device-badge {
+            background: #48bb78;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .loader {
+            display: none;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        .loader.show {
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            color: #718096;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🔐</div>
+            <h1>Molam ID</h1>
+            <p class="subtitle">Authentification biométrique sécurisée</p>
+        </div>
+
+        <div class="status-card">
+            <h3>
+                <span id="status-icon">🔒</span>
+                <span id="status-title">Biométrie désactivée</span>
+            </h3>
+            <p id="status-text">Activez l'authentification biométrique pour une sécurité renforcée et une connexion plus rapide.</p>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <button id="btn-enroll" class="btn btn-primary">
+            <span class="btn-icon">👆</span>
+            <span>Activer la biométrie</span>
+            <span class="loader"></span>
+        </button>
+
+        <button id="btn-verify" class="btn btn-secondary" disabled>
+            <span class="btn-icon">✓</span>
+            <span>Vérifier l'identité</span>
+            <span class="loader"></span>
+        </button>
+
+        <div class="features">
+            <h3>Méthodes supportées :</h3>
+            <ul class="feature-list">
+                <li>Face ID / Touch ID (iOS/macOS)</li>
+                <li>Empreinte digitale / Reconnaissance faciale (Android)</li>
+                <li>Windows Hello (Windows)</li>
+                <li>Clés de sécurité (YubiKey, etc.)</li>
+            </ul>
+        </div>
+
+        <div class="devices" id="devices-section" style="display: none;">
+            <h3>Mes appareils enregistrés :</h3>
+            <div id="devices-list"></div>
+        </div>
+
+        <div class="footer">
+            Brique 7 - Biométrie WebAuthn/FIDO2<br>
+            Molam ID © 2025
+        </div>
+    </div>
+
+    <script>
+        // Simulation de l'état de l'application
+        let biometricsEnabled = false;
+        let devices = [];
+
+        // Éléments DOM
+        const btnEnroll = document.getElementById('btn-enroll');
+        const btnVerify = document.getElementById('btn-verify');
+        const messageDiv = document.getElementById('message');
+        const statusIcon = document.getElementById('status-icon');
+        const statusTitle = document.getElementById('status-title');
+        const statusText = document.getElementById('status-text');
+        const devicesSection = document.getElementById('devices-section');
+        const devicesList = document.getElementById('devices-list');
+
+        // Fonction pour afficher un message
+        function showMessage(text, type = 'info') {
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type} show`;
+            setTimeout(() => {
+                messageDiv.className = 'message';
+            }, 5000);
+        }
+
+        // Fonction pour mettre à jour le statut
+        function updateStatus(enabled) {
+            biometricsEnabled = enabled;
+
+            if (enabled) {
+                statusIcon.textContent = '✅';
+                statusTitle.textContent = 'Biométrie activée';
+                statusText.textContent = 'Votre appareil est enregistré. Vous pouvez maintenant vous authentifier avec Face ID, Touch ID ou Windows Hello.';
+                btnEnroll.innerHTML = '<span class="btn-icon">🔄</span><span>Réenregistrer l\'appareil</span><span class="loader"></span>';
+                btnVerify.disabled = false;
+                devicesSection.style.display = 'block';
+            } else {
+                statusIcon.textContent = '🔒';
+                statusTitle.textContent = 'Biométrie désactivée';
+                statusText.textContent = 'Activez l\'authentification biométrique pour une sécurité renforcée et une connexion plus rapide.';
+                btnEnroll.innerHTML = '<span class="btn-icon">👆</span><span>Activer la biométrie</span><span class="loader"></span>';
+                btnVerify.disabled = true;
+                devicesSection.style.display = 'none';
+            }
+        }
+
+        // Fonction pour afficher les appareils
+        function renderDevices() {
+            devicesList.innerHTML = devices.map(device => `
+                <div class="device-item">
+                    <div class="device-info">
+                        <div class="device-name">${device.name}</div>
+                        <div class="device-meta">${device.platform} • ${device.date}</div>
+                    </div>
+                    <span class="device-badge">Actif</span>
+                </div>
+            `).join('');
+        }
+
+        // Fonction pour simuler l'activation de la biométrie
+        async function enrollBiometrics() {
+            // Désactiver le bouton et afficher le loader
+            btnEnroll.disabled = true;
+            btnEnroll.querySelector('.loader').classList.add('show');
+
+            showMessage('🔐 Connexion au serveur...', 'info');
+
+            // Simuler l'appel API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Vérifier si WebAuthn est disponible
+            if (!window.PublicKeyCredential) {
+                showMessage('❌ WebAuthn n\'est pas supporté par ce navigateur. Utilisez Chrome, Safari, Firefox ou Edge.', 'error');
+                btnEnroll.disabled = false;
+                btnEnroll.querySelector('.loader').classList.remove('show');
+                return;
+            }
+
+            showMessage('👆 Veuillez authentifier avec votre biométrie...', 'info');
+
+            try {
+                // Simuler le processus WebAuthn
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Simuler l'ajout d'un appareil
+                const deviceName = detectPlatform();
+                devices.push({
+                    name: deviceName,
+                    platform: getPlatformIcon(),
+                    date: new Date().toLocaleDateString('fr-FR')
+                });
+
+                renderDevices();
+                updateStatus(true);
+                showMessage('✅ Biométrie activée avec succès ! Vous pouvez maintenant vous authentifier rapidement.', 'success');
+
+            } catch (error) {
+                showMessage('❌ Erreur lors de l\'activation : ' + error.message, 'error');
+            }
+
+            // Réactiver le bouton
+            btnEnroll.disabled = false;
+            btnEnroll.querySelector('.loader').classList.remove('show');
+        }
+
+        // Fonction pour simuler la vérification biométrique
+        async function verifyBiometrics() {
+            btnVerify.disabled = true;
+            btnVerify.querySelector('.loader').classList.add('show');
+
+            showMessage('👆 Authentification en cours...', 'info');
+
+            try {
+                // Simuler le processus de vérification
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                showMessage('✅ Identité vérifiée avec succès ! Vous êtes maintenant authentifié.', 'success');
+
+            } catch (error) {
+                showMessage('❌ Échec de la vérification : ' + error.message, 'error');
+            }
+
+            btnVerify.disabled = false;
+            btnVerify.querySelector('.loader').classList.remove('show');
+        }
+
+        // Détecter la plateforme
+        function detectPlatform() {
+            const ua = navigator.userAgent;
+            if (/iPhone|iPad|iPod/.test(ua)) return 'Mon iPhone';
+            if (/Android/.test(ua)) return 'Mon appareil Android';
+            if (/Windows/.test(ua)) return 'Mon PC Windows';
+            if (/Mac/.test(ua)) return 'Mon Mac';
+            return 'Mon navigateur';
+        }
+
+        function getPlatformIcon() {
+            const ua = navigator.userAgent;
+            if (/iPhone|iPad|iPod/.test(ua)) return '📱 iOS';
+            if (/Android/.test(ua)) return '🤖 Android';
+            if (/Windows/.test(ua)) return '💻 Windows';
+            if (/Mac/.test(ua)) return '🍎 macOS';
+            return '🌐 Web';
+        }
+
+        // Événements
+        btnEnroll.addEventListener('click', enrollBiometrics);
+        btnVerify.addEventListener('click', verifyBiometrics);
+
+        // Message initial
+        setTimeout(() => {
+            showMessage('💡 Astuce : L\'authentification biométrique ne stocke jamais vos empreintes sur nos serveurs. Tout reste sur votre appareil.', 'info');
+        }, 1000);
+    </script>
+</body>
+</html>

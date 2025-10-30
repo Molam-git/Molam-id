@@ -1,0 +1,253 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: id-geo
+  namespace: molam-id
+  labels:
+    app: id-geo
+    component: geolocation
+    tier: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: id-geo
+  template:
+    metadata:
+      labels:
+        app: id-geo
+        component: geolocation
+        tier: backend
+    spec:
+      serviceAccountName: id-geo-sa
+      containers:
+      - name: id-geo
+        image: molam/id-geo:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3009
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3009"
+
+        # Database
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: connection-string
+
+        # Redis
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+
+        # JWT
+        - name: JWT_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jwt-keys
+              key: public-key
+        - name: JWT_AUDIENCE
+          value: "molam-id"
+        - name: JWT_ISSUER
+          value: "https://id.molam.com"
+
+        # KMS
+        - name: AWS_REGION
+          value: "eu-west-3"
+        - name: KMS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: kms-secret
+              key: key-id
+
+        # MaxMind
+        - name: MAXMIND_ACCOUNT_ID
+          valueFrom:
+            secretKeyRef:
+              name: maxmind-secret
+              key: account-id
+        - name: MAXMIND_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maxmind-secret
+              key: license-key
+        - name: MAXMIND_DB_PATH
+          value: "/data/GeoLite2-City.mmdb"
+        - name: MAXMIND_ASN_DB_PATH
+          value: "/data/GeoLite2-ASN.mmdb"
+
+        # USSD
+        - name: USSD_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: ussd-secret
+              key: webhook-secret
+
+        # Audit
+        - name: AUDIT_SERVICE_URL
+          value: "http://id-audit:3006"
+
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: 3009
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 3009
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+
+        # Resources
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        # Volume mounts
+        volumeMounts:
+        - name: maxmind-data
+          mountPath: /data
+          readOnly: true
+
+      # Init container to download MaxMind databases
+      initContainers:
+      - name: maxmind-downloader
+        image: curlimages/curl:latest
+        command:
+        - sh
+        - -c
+        - |
+          curl -L -u "${MAXMIND_ACCOUNT_ID}:${MAXMIND_LICENSE_KEY}" \
+            -o /tmp/GeoLite2-City.tar.gz \
+            "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
+
+          curl -L -u "${MAXMIND_ACCOUNT_ID}:${MAXMIND_LICENSE_KEY}" \
+            -o /tmp/GeoLite2-ASN.tar.gz \
+            "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
+
+          tar -xzf /tmp/GeoLite2-City.tar.gz -C /data --strip-components=1
+          tar -xzf /tmp/GeoLite2-ASN.tar.gz -C /data --strip-components=1
+        env:
+        - name: MAXMIND_ACCOUNT_ID
+          valueFrom:
+            secretKeyRef:
+              name: maxmind-secret
+              key: account-id
+        - name: MAXMIND_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: maxmind-secret
+              key: license-key
+        volumeMounts:
+        - name: maxmind-data
+          mountPath: /data
+
+      volumes:
+      - name: maxmind-data
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: id-geo
+  namespace: molam-id
+  labels:
+    app: id-geo
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3009
+    targetPort: 3009
+    protocol: TCP
+    name: http
+  selector:
+    app: id-geo
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: id-geo-sa
+  namespace: molam-id
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/molam-id-geo-role
+
+---
+# CronJob to update MaxMind databases weekly
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: maxmind-updater
+  namespace: molam-id
+spec:
+  schedule: "0 2 * * 0"  # Every Sunday at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: updater
+            image: curlimages/curl:latest
+            command:
+            - sh
+            - -c
+            - |
+              # Trigger rolling restart of id-geo pods
+              # This will cause init containers to re-download databases
+              kubectl rollout restart deployment/id-geo -n molam-id
+          restartPolicy: OnFailure
+
+---
+# CronJob to purge expired GPS data daily
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gps-purge
+  namespace: molam-id
+spec:
+  schedule: "0 3 * * *"  # Every day at 3 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: purge
+            image: postgres:15-alpine
+            command:
+            - psql
+            - $(DATABASE_URL)
+            - -c
+            - "SELECT purge_expired_gps();"
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: connection-string
+          restartPolicy: OnFailure

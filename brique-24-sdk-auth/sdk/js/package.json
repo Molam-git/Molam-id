@@ -1,0 +1,43 @@
+{
+  "name": "@molam/auth",
+  "version": "1.0.0",
+  "description": "Molam Auth SDK - Universal authentication for JavaScript/TypeScript",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc && rollup -c",
+    "test": "jest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "molam",
+    "auth",
+    "authentication",
+    "jwt",
+    "sdk",
+    "identity"
+  ],
+  "author": "Molam Corporation <developers@molam.sn>",
+  "license": "PROPRIETARY",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/molam/molam-auth-js.git"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "rollup": "^4.9.0",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.0"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.molam.sn/"
+  }
+}

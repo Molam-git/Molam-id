@@ -1,0 +1,102 @@
+plugins {
+    id 'com.android.library'
+    id 'kotlin-android'
+    id 'maven-publish'
+}
+
+android {
+    namespace 'com.molam.auth'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 21
+        targetSdk 34
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+
+    // Security - Encrypted storage
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+
+    // Networking
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // Coroutines
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // JSON
+    implementation 'org.json:json:20231013'
+
+    // Testing
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId = 'com.molam'
+                artifactId = 'auth'
+                version = '1.0.0'
+
+                pom {
+                    name = 'Molam Auth SDK'
+                    description = 'Universal authentication SDK for Android'
+                    url = 'https://github.com/molam/molam-auth-android'
+
+                    licenses {
+                        license {
+                            name = 'Proprietary'
+                            url = 'https://molam.sn/license'
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id = 'molam'
+                            name = 'Molam Team'
+                            email = 'developers@molam.sn'
+                        }
+                    }
+                }
+            }
+        }
+
+        repositories {
+            maven {
+                name = "MolamPrivate"
+                url = uri("https://maven.molam.sn/releases")
+                credentials {
+                    username = project.findProperty("molam.maven.username") ?: System.getenv("MOLAM_MAVEN_USERNAME")
+                    password = project.findProperty("molam.maven.password") ?: System.getenv("MOLAM_MAVEN_PASSWORD")
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,221 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: id-audit
+  namespace: molam-id
+  labels:
+    app: id-audit
+    component: audit
+    tier: backend
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: id-audit
+  template:
+    metadata:
+      labels:
+        app: id-audit
+        component: audit
+        tier: backend
+    spec:
+      serviceAccountName: id-audit-sa
+      containers:
+      - name: id-audit
+        image: molam/id-audit:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3014
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3014"
+
+        # Database
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: connection-string
+
+        # Redis
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+
+        # JWT
+        - name: JWT_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jwt-keys
+              key: public-key
+        - name: JWT_AUDIENCE
+          value: "molam-id"
+        - name: JWT_ISSUER
+          value: "https://id.molam.com"
+
+        # S3
+        - name: S3_ENABLED
+          value: "true"
+        - name: S3_REGION
+          value: "eu-west-1"
+        - name: S3_AUDIT_BUCKET
+          value: "molam-audit-logs"
+        - name: S3_KMS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-kms-secret
+              key: key-id
+
+        # AWS Credentials
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: secret-access-key
+
+        # Kafka (Optional)
+        - name: KAFKA_ENABLED
+          value: "false"
+        # - name: KAFKA_BROKERS
+        #   value: "kafka-1:9092,kafka-2:9092"
+        # - name: KAFKA_AUDIT_TOPIC
+        #   value: "molam.audit"
+        # - name: KAFKA_GROUP_ID
+        #   value: "audit-ingestion"
+
+        # Audit Settings
+        - name: AUDIT_RETENTION_DAYS
+          value: "395"
+        - name: ARCHIVE_DAILY_AT
+          value: "02:00"
+        - name: CHAIN_VERIFY_ENABLED
+          value: "true"
+
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: 3014
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 3014
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+
+        # Resources
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "300m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: id-audit
+  namespace: molam-id
+  labels:
+    app: id-audit
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3014
+    targetPort: 3014
+    protocol: TCP
+    name: http
+  selector:
+    app: id-audit
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: id-audit-sa
+  namespace: molam-id
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/molam-audit-s3-access
+
+---
+# CronJob pour créer partition du mois prochain
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: audit-partition-creator
+  namespace: molam-id
+spec:
+  schedule: "0 0 25 * *"  # 25th of each month at midnight
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: create-partition
+            image: postgres:15-alpine
+            command:
+            - psql
+            - $(DATABASE_URL)
+            - -c
+            - "SELECT create_next_month_audit_partition();"
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: connection-string
+          restartPolicy: OnFailure
+
+---
+# CronJob pour vérifier l'intégrité de la chaîne (quotidien)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: audit-chain-verifier
+  namespace: molam-id
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: verify-chain
+            image: postgres:15-alpine
+            command:
+            - psql
+            - $(DATABASE_URL)
+            - -c
+            - "SELECT * FROM verify_audit_chain(NOW() - INTERVAL '1 day', NOW());"
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: connection-string
+          restartPolicy: OnFailure

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: id-profile
+  namespace: molam-id
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: id-profile
+  template:
+    metadata:
+      labels:
+        app: id-profile
+    spec:
+      containers:
+      - name: id-profile
+        image: molam/id-profile:latest
+        ports:
+        - containerPort: 3017
+        env:
+        - name: PORT
+          value: "3017"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: connection-string
+        - name: JWT_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jwt-keys
+              key: public-key
+        - name: AWS_REGION
+          value: "eu-west-1"
+        - name: AVATAR_BUCKET
+          value: "molam-avatars"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: id-profile
+  namespace: molam-id
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3017
+    targetPort: 3017
+  selector:
+    app: id-profile

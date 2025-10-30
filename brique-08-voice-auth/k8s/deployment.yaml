@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-auth
+  namespace: molam-id
+  labels:
+    app: voice-auth
+    component: authentication
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: voice-auth
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: voice-auth
+        component: authentication
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: voice-auth
+      containers:
+        - name: voice-auth
+          image: ghcr.io/molam/voice-auth:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8081"
+            - name: NODE_ENV
+              value: production
+            - name: JWT_AUDIENCE
+              value: molam.id
+            - name: JWT_ISSUER
+              value: https://id.molam.com
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: voice-auth-secrets
+                  key: jwt-public-key
+            - name: DATA_ENC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: voice-auth-secrets
+                  key: data-enc-key
+            - name: KMS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: voice-auth-secrets
+                  key: kms-key-id
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: voice-auth-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: voice-auth-secrets
+                  key: redis-url
+            - name: S3_TEMP_BUCKET
+              value: molam-voice-temp
+            - name: AWS_REGION
+              value: eu-west-1
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: voice-auth-secrets
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: voice-auth-secrets
+                  key: aws-secret-access-key
+            - name: VOICE_ML_URL
+              value: http://voice-ml:9000
+            - name: VOICE_ML_TIMEOUT
+              value: "5000"
+            - name: IVR_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: voice-auth-secrets
+                  key: ivr-webhook-secret
+            - name: SIRA_ENABLED
+              value: "true"
+            - name: SIRA_STREAM_NAME
+              value: sira_signals
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-auth
+  namespace: molam-id
+  labels:
+    app: voice-auth
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: voice-auth
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: voice-auth
+  namespace: molam-id
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: voice-auth
+  namespace: molam-id
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: voice-auth

@@ -1,0 +1,159 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: id-blacklist
+  namespace: molam-id
+  labels:
+    app: id-blacklist
+    component: security
+    tier: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: id-blacklist
+  template:
+    metadata:
+      labels:
+        app: id-blacklist
+        component: security
+        tier: backend
+    spec:
+      serviceAccountName: id-blacklist-sa
+      containers:
+      - name: id-blacklist
+        image: molam/id-blacklist:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3013
+          name: http
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3013"
+
+        # Database
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: connection-string
+
+        # Redis
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+
+        # JWT
+        - name: JWT_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jwt-keys
+              key: public-key
+        - name: JWT_AUDIENCE
+          value: "molam-id"
+        - name: JWT_ISSUER
+          value: "https://id.molam.com"
+
+        # Audit
+        - name: AUDIT_SERVICE_URL
+          value: "http://id-audit:3006"
+        - name: AUDIT_ENABLED
+          value: "true"
+
+        # SIRA
+        - name: SIRA_SERVICE_URL
+          value: "http://sira:8080"
+        - name: SIRA_ENABLED
+          value: "true"
+
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: 3013
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 3013
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+
+        # Resources
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: id-blacklist
+  namespace: molam-id
+  labels:
+    app: id-blacklist
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3013
+    targetPort: 3013
+    protocol: TCP
+    name: http
+  selector:
+    app: id-blacklist
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: id-blacklist-sa
+  namespace: molam-id
+
+---
+# CronJob pour expirer les suspensions (backup, le service a déjà un timer interne)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: blacklist-expiry
+  namespace: molam-id
+spec:
+  schedule: "*/5 * * * *"  # Every 5 minutes
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: expire
+            image: postgres:15-alpine
+            command:
+            - psql
+            - $(DATABASE_URL)
+            - -c
+            - "SELECT expire_suspensions();"
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: connection-string
+          restartPolicy: OnFailure
