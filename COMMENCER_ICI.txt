@@ -1,0 +1,126 @@
+╔════════════════════════════════════════════════════════════════╗
+║                    MOLAM-ID - DÉMARRAGE                        ║
+║              Suivez ces 3 étapes DANS L'ORDRE                  ║
+╚════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────┐
+│  ÉTAPE 1: ARRÊTER TOUS LES PROCESSUS NODE                     │
+└────────────────────────────────────────────────────────────────┘
+
+Option A (RECOMMANDÉE - La plus simple):
+   1. Appuyez sur Ctrl + Shift + Esc (Gestionnaire des tâches)
+   2. Onglet "Détails"
+   3. Trouvez tous les "node.exe"
+   4. Clic droit → "Fin de tâche" sur chaque node.exe
+   5. Fermez le Gestionnaire des tâches
+
+Option B (Plus rapide):
+   Redémarrez simplement votre ordinateur
+
+
+┌────────────────────────────────────────────────────────────────┐
+│  ÉTAPE 2: DÉMARRER LE BACKEND                                 │
+└────────────────────────────────────────────────────────────────┘
+
+   1. Ouvrez l'Explorateur de fichiers
+   2. Allez dans: C:\Users\lomao\Desktop\Molam\Molam-id
+   3. Double-cliquez sur: restart-backend.bat
+
+   ➜ Une fenêtre noire va s'ouvrir et afficher:
+     "📡 Server listening on port 3000"
+     "✅ Test de connexion réussi"
+
+   ➜ LAISSEZ CETTE FENÊTRE OUVERTE !
+
+
+┌────────────────────────────────────────────────────────────────┐
+│  ÉTAPE 3: DÉMARRER L'INTERFACE WEB                            │
+└────────────────────────────────────────────────────────────────┘
+
+   1. Ouvrez l'Explorateur de fichiers
+   2. Allez dans: C:\Users\lomao\Desktop\Molam\Molam-id\brique-36-ui-id\web
+   3. Double-cliquez sur: start-ui.bat
+
+   ➜ Une deuxième fenêtre noire va s'ouvrir et afficher:
+     "VITE ready in XXX ms"
+     "Local: http://localhost:5173"
+
+   ➜ LAISSEZ AUSSI CETTE FENÊTRE OUVERTE !
+
+
+┌────────────────────────────────────────────────────────────────┐
+│  ÉTAPE 4: UTILISER LE SYSTÈME                                 │
+└────────────────────────────────────────────────────────────────┘
+
+   1. Ouvrez votre navigateur (Chrome, Edge, Firefox...)
+
+   2. Allez à l'adresse: http://localhost:5173
+
+   3. Vous verrez l'interface Molam-ID !
+      → Cliquez sur "Créer un compte" pour vous inscrire
+      → Ou "Connexion" si vous avez déjà un compte
+
+
+╔════════════════════════════════════════════════════════════════╗
+║                         RÉSUMÉ                                 ║
+╚════════════════════════════════════════════════════════════════╝
+
+Vous devez avoir 2 fenêtres noires ouvertes:
+
+┌─────────────────────────────────────┐
+│  FENÊTRE 1: Backend (port 3000)    │
+│  "📡 Server listening on port 3000"│
+│  ➜ NE PAS FERMER                   │
+└─────────────────────────────────────┘
+
+┌─────────────────────────────────────┐
+│  FENÊTRE 2: Web UI (port 5173)     │
+│  "Local: http://localhost:5173"    │
+│  ➜ NE PAS FERMER                   │
+└─────────────────────────────────────┘
+
+Et votre navigateur ouvert sur: http://localhost:5173
+
+
+═══════════════════════════════════════════════════════════════
+
+🎯 TEST RAPIDE:
+
+1. Backend fonctionne ?
+   ➜ Ouvrez: http://localhost:3000/healthz
+   ➜ Vous devez voir: {"status":"healthy"...}
+
+2. Web UI fonctionne ?
+   ➜ Ouvrez: http://localhost:5173
+   ➜ Vous devez voir: L'interface avec "Connexion" et "Créer un compte"
+
+
+═══════════════════════════════════════════════════════════════
+
+❌ EN CAS DE PROBLÈME:
+
+Si le backend ne démarre pas (port déjà utilisé):
+   ➜ Recommencez l'ÉTAPE 1 (arrêter tous les processus Node)
+   ➜ Redémarrez votre ordinateur (plus simple)
+
+Si PostgreSQL n'est pas démarré:
+   ➜ Ouvrez Docker Desktop
+   ➜ Démarrez le container "molam-postgres"
+
+Pour plus d'aide:
+   ➜ Consultez: DEMARRAGE_RAPIDE.md
+
+
+═══════════════════════════════════════════════════════════════
+
+✅ TOUT FONCTIONNE ? BRAVO !
+
+Vous pouvez maintenant:
+   → Créer un compte
+   → Vous connecter
+   → Gérer votre profil
+   → Voir vos sessions actives
+   → Changer le thème (clair/sombre)
+
+
+═══════════════════════════════════════════════════════════════

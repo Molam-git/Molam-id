@@ -141,3 +141,19 @@ export function generateDeviceFingerprint(userAgent, ip) {
   const data = `${userAgent}-${ip}`;
   return crypto.createHash("sha256").update(data).digest("hex");
 }
+
+/**
+ * Alias pour hashPasswordWithPepper (rétrocompatibilité)
+ */
+export async function hashPassword(password) {
+  return hashPasswordWithPepper(password);
+}
+
+/**
+ * Génère un Molam ID unique (format: MID-XXXXXXXXXXXX)
+ */
+export function generateMolamId() {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const randomPart = crypto.randomBytes(6).toString('hex').toUpperCase();
+  return `MID-${timestamp}${randomPart}`;
+}

@@ -1,0 +1,162 @@
+═══════════════════════════════════════════════════════════════
+  ✅ PROBLÈMES RÉSOLUS - Sessions + Profil
+═══════════════════════════════════════════════════════════════
+
+PROBLÈME 1: Session perdue à l'actualisation
+→ RÉSOLU: La session persiste maintenant dans localStorage
+
+PROBLÈME 2: Prénom et nom n'apparaissent pas
+→ RÉSOLU: Les infos de profil sont maintenant incluses
+
+───────────────────────────────────────────────────────────────
+  🚀 TESTEZ MAINTENANT (4 étapes)
+───────────────────────────────────────────────────────────────
+
+ÉTAPE 1: Redémarrer le Backend
+  1. Trouvez la fenêtre du backend
+  2. Ctrl + C pour arrêter
+  3. Lancez: restart-backend.bat
+  4. Attendez: "📡 Server listening on port 3000"
+
+ÉTAPE 2: Redémarrer le Web UI
+  1. Trouvez la fenêtre du Web UI
+  2. Ctrl + C pour arrêter
+  3. Dans: brique-36-ui-id\web
+  4. Lancez: start-ui.bat
+  5. Attendez: "VITE ready"
+
+ÉTAPE 3: Créer un NOUVEAU Compte
+  ⚠️ Les anciens comptes ne fonctionneront plus
+
+  1. Allez sur: http://localhost:5173
+  2. Cliquez "Créer un compte"
+  3. Remplissez TOUS les champs:
+     → Téléphone: +221700999888
+     → Mot de passe: MonMotDePasse123!
+     → Prénom: Jean  ← IMPORTANT
+     → Nom: Dupont  ← IMPORTANT
+  4. Cliquez "S'inscrire"
+
+  ✅ Vous devriez voir:
+     - Votre téléphone affiché
+     - Votre prénom "Jean" ← NOUVEAU!
+     - Votre nom "Dupont" ← NOUVEAU!
+
+ÉTAPE 4: Tester la Persistance
+  1. Restez connecté
+  2. Appuyez sur F5 (actualiser la page)
+
+  ✅ Résultat attendu:
+     - Vous restez connecté ! ← NOUVEAU!
+     - Vos infos sont toujours là ← NOUVEAU!
+
+───────────────────────────────────────────────────────────────
+  🧪 TEST COMPLET
+───────────────────────────────────────────────────────────────
+
+Test 1: Créer compte avec prénom et nom
+  → Créez: +221700111222 / Test123! / Alice / Wonder
+  → Vérifiez que "Alice Wonder" apparaît sur le profil
+
+Test 2: Se déconnecter et reconnecter
+  → Déconnexion
+  → Reconnexion avec +221700111222 / Test123!
+  → Vérifiez que "Alice Wonder" apparaît toujours
+
+Test 3: Actualiser la page
+  → Restez connecté
+  → F5 pour actualiser
+  → Vous devez rester connecté avec vos infos
+
+Test 4: Fermer et rouvrir le navigateur
+  → Fermez complètement le navigateur
+  → Rouvrez http://localhost:5173
+  → Vous devez ENCORE être connecté !
+
+───────────────────────────────────────────────────────────────
+  🔧 CE QUI A ÉTÉ CORRIGÉ
+───────────────────────────────────────────────────────────────
+
+Frontend (Web UI):
+  ✓ useEffect pour charger la session au démarrage
+  ✓ Sauvegarde de user_data dans localStorage
+  ✓ Restauration automatique à l'actualisation
+  ✓ État loading géré correctement
+
+Backend (API):
+  ✓ Signup renvoie firstName et lastName
+  ✓ Login renvoie firstName et lastName
+  ✓ Données extraites du champ metadata
+  ✓ Structure user.profile.given_name/family_name
+
+───────────────────────────────────────────────────────────────
+  ✅ CHECKLIST
+───────────────────────────────────────────────────────────────
+
+Avant de tester:
+  [ ] Backend redémarré
+  [ ] Web UI redémarré
+  [ ] Ancien compte supprimé (déconnecté)
+
+Pendant le test:
+  [ ] Nouveau compte créé AVEC prénom et nom
+  [ ] Prénom et nom apparaissent sur le profil
+  [ ] F5 → Reste connecté
+  [ ] Fermer navigateur → Reste connecté
+  [ ] Se déconnecter → Peut se reconnecter
+
+───────────────────────────────────────────────────────────────
+  ❌ SI ÇA NE FONCTIONNE PAS
+───────────────────────────────────────────────────────────────
+
+Problème: Le prénom/nom n'apparaissent pas
+  → Vérifiez que vous avez bien rempli ces champs
+  → Créez un NOUVEAU compte (les anciens ne marcheront pas)
+  → Vérifiez la console (F12) pour les erreurs
+
+Problème: Se déconnecte à l'actualisation
+  → Videz le cache: Ctrl + Shift + Delete
+  → Rechargez: Ctrl + F5
+  → Créez un nouveau compte
+
+Problème: Erreur à la connexion
+  → Le backend a bien redémarré ?
+  → Testez: http://localhost:3000/healthz
+  → Relancez restart-backend.bat
+
+───────────────────────────────────────────────────────────────
+  📊 ARCHITECTURE MAINTENANT
+───────────────────────────────────────────────────────────────
+
+Flux de données:
+
+1. SIGNUP/LOGIN
+   Backend → Renvoie user avec profile{given_name, family_name}
+   Frontend → Stocke dans localStorage (user_data)
+   Frontend → Affiche le profil complet
+
+2. ACTUALISATION PAGE
+   Frontend → Charge user_data depuis localStorage
+   Frontend → Restaure la session automatiquement
+   Frontend → Affiche le profil sans appel API
+
+3. DÉCONNEXION
+   Frontend → Supprime tout de localStorage
+   Frontend → Redirige vers login
+
+───────────────────────────────────────────────────────────────
+
+RÉSUMÉ DES 4 ÉTAPES:
+  1. Redémarrez backend
+  2. Redémarrez Web UI
+  3. Créez nouveau compte (avec prénom/nom)
+  4. Testez: F5, fermer/rouvrir navigateur
+
+═══════════════════════════════════════════════════════════════
+
+TESTEZ ET DITES-MOI:
+  ✅ Ça marche ! Le prénom s'affiche et je reste connecté
+  ⚠️ Le prénom s'affiche mais je me déconnecte quand même
+  ❌ Rien ne marche, erreur: [message]
+
+═══════════════════════════════════════════════════════════════

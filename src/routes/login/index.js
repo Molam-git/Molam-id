@@ -8,6 +8,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import { verifyPasswordWithPepper, normalizePhone } from '../../utils/security.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
@@ -31,8 +32,11 @@ export async function loginV2(req, res) {
   const ip = req.ip || req.connection.remoteAddress || 'unknown';
 
   try {
+    console.log('🔐 Login attempt:', { phone, email, hasPassword: !!password });
+
     // Validate input
     if ((!email && !phone) || !password) {
+      console.log('❌ Missing credentials');
       return res.status(400).json({
         error: 'Email/phone and password are required'
       });
@@ -44,11 +48,16 @@ export async function loginV2(req, res) {
       query = 'SELECT * FROM molam_users WHERE email = $1';
       params = [email.toLowerCase()];
     } else {
-      query = 'SELECT * FROM molam_users WHERE phone = $1';
-      params = [phone];
+      // Normalize phone number (e.g., 771234567 -> +221771234567)
+      const normalizedPhone = normalizePhone(phone);
+      query = 'SELECT * FROM molam_users WHERE phone_e164 = $1';
+      params = [normalizedPhone];
+      console.log('📱 Phone normalized:', phone, '->', normalizedPhone);
     }
 
+    console.log('🔍 Searching user with:', { query, params });
     const userResult = await pool.query(query, params);
+    console.log('👤 User found:', userResult.rows.length > 0 ? 'YES' : 'NO');
 
     if (userResult.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -64,19 +73,24 @@ export async function loginV2(req, res) {
       });
     }
 
-    // Verify password
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    // Verify password (with pepper like signup)
+    console.log('🔑 Verifying password with pepper...');
+    const passwordMatch = await verifyPasswordWithPepper(password, user.password_hash);
+    console.log('🔑 Password match:', passwordMatch ? 'YES ✅' : 'NO ❌');
 
     if (!passwordMatch) {
+      console.log('❌ Login failed: Invalid password');
       // Log failed login attempt
       await pool.query(
-        `INSERT INTO molam_audit_logs (actor, action, meta)
-         VALUES ($1, $2, $3)`,
-        [user.id, 'login_failed', JSON.stringify({ reason: 'invalid_password', ip, user_agent: userAgent })]
+        `INSERT INTO molam_audit_logs (action, actor_id, target_id, metadata)
+         VALUES ($1, $2, $3, $4)`,
+        ['login_failed', user.id, user.id, JSON.stringify({ reason: 'invalid_password', ip, user_agent: userAgent })]
       );
 
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    console.log('✅ Password verified successfully');
 
     // Generate device fingerprint
     const deviceId = generateDeviceFingerprint(userAgent, ip);
@@ -153,6 +167,18 @@ export async function loginV2(req, res) {
       ]
     );
 
+    // Parse metadata to get firstName and lastName
+    const metadata = typeof user.metadata === 'string' ? JSON.parse(user.metadata) : user.metadata;
+
+    console.log('✅ Login successful - Returning user data:', {
+      id: user.id,
+      email: user.email,
+      phone: user.phone_e164,
+      given_name: metadata?.firstName,
+      family_name: metadata?.lastName,
+      created_at: user.created_at
+    });
+
     return res.status(200).json({
       access_token: accessToken,
       refresh_token: refreshToken,
@@ -163,9 +189,15 @@ export async function loginV2(req, res) {
         id: user.id,
         molam_id: user.molam_id,
         email: user.email,
-        phone: user.phone,
+        phone: user.phone_e164,
+        phone_number: user.phone_e164,
         role: user.user_role,
-        kyc_status: user.kyc_status
+        kyc_status: user.kyc_status,
+        created_at: user.created_at,
+        profile: {
+          given_name: metadata?.firstName,
+          family_name: metadata?.lastName,
+        }
       }
     });
 

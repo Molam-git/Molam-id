@@ -1,0 +1,235 @@
+openapi: 3.0.3
+info:
+  title: Molam ID – Admin Governance API
+  version: "1.0.0"
+  description: >
+    Centralized superadmin governance API for Molam ID domain.
+    Implements 4-eyes rule, break-glass emergency flow, and immutable WORM audit logging.
+    **All endpoints require role `id:superadmin`** and JWT authentication.
+servers:
+  - url: https://api.molam.io
+    description: Production
+  - url: http://localhost:3000
+    description: Local Development
+
+tags:
+  - name: Superadmin
+    description: Listing of current Molam ID superadmins
+  - name: Admin Actions
+    description: Workflow for sensitive admin actions (4-eyes)
+  - name: Break Glass
+    description: Emergency mode lifecycle
+  - name: Audit
+    description: Immutable WORM audit logs
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AdminActionRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        action_key: { type: string, example: "ADD_SUPERADMIN" }
+        requested_by: { type: string, format: uuid }
+        target_user: { type: string, format: uuid, nullable: true }
+        justification: { type: string }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, EXECUTED, EXPIRED, CANCELLED] }
+        approvals_required: { type: integer, example: 2 }
+        approvals_count: { type: integer, example: 1 }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AdminActionCreateInput:
+      type: object
+      required: [action_key, justification]
+      properties:
+        action_key:
+          type: string
+          enum: [ADD_SUPERADMIN, REMOVE_SUPERADMIN, ELEVATE_TEMP_ROLE, ROTATE_KEYS, BREAK_GLASS]
+        target_user:
+          type: string
+          format: uuid
+          description: User target (optional)
+        payload:
+          type: object
+          example: { "role": "id:audit_admin", "expires_at": "2025-12-31T23:59:59Z" }
+        justification:
+          type: string
+          example: "Adding a new superadmin for redundancy."
+
+    AdminActionApprovalInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [APPROVE, REJECT]
+        reason:
+          type: string
+          example: "Approved after policy review."
+
+    BreakGlassCloseInput:
+      type: object
+      required: [postmortem_url]
+      properties:
+        postmortem_url:
+          type: string
+          format: uri
+          example: "https://postmortem.molam.io/incident/12345"
+
+    WormAuditEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        at: { type: string, format: date-time }
+        actor: { type: string, format: uuid }
+        action_key: { type: string }
+        request_id: { type: string, format: uuid }
+        payload: { type: object }
+        ip: { type: string }
+        user_agent: { type: string }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/id/admin/superadmins:
+    get:
+      tags: [Superadmin]
+      summary: List current superadmins in the ID domain
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  superadmins:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        email: { type: string, format: email }
+
+  /api/id/admin/requests:
+    post:
+      tags: [Admin Actions]
+      summary: Create a sensitive admin action request (4-eyes)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema: { type: string }
+          required: true
+          description: Idempotency key for duplicate prevention.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminActionCreateInput" }
+      responses:
+        "201":
+          description: Request created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminActionRequest" }
+        "403": { description: Forbidden }
+        "400": { description: Bad Request }
+
+  /api/id/admin/requests/{id}/approve:
+    post:
+      tags: [Admin Actions]
+      summary: Approve or reject an admin action request
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: Idempotency-Key
+          in: header
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminActionApprovalInput" }
+      responses:
+        "200": { description: Approval recorded }
+        "403": { description: Forbidden or self-approve attempt }
+        "404": { description: Not found }
+
+  /api/id/admin/requests/{id}/execute:
+    post:
+      tags: [Admin Actions]
+      summary: Execute an approved admin action
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: X-Hsm-Assertion
+          in: header
+          schema: { type: string }
+          description: Proof of HSM or Vault signature (if required).
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Action executed successfully }
+        "409": { description: Not approved or already executed }
+        "400": { description: Invalid request or missing HSM assertion }
+
+  /api/id/admin/break-glass/{id}/close:
+    post:
+      tags: [Break Glass]
+      summary: Close an active break-glass event (postmortem link required)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BreakGlassCloseInput" }
+      responses:
+        "200": { description: Event closed }
+        "404": { description: Event not found }
+
+  /api/id/admin/audit:
+    get:
+      tags: [Audit]
+      summary: List immutable WORM audit entries
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: "#/components/schemas/WormAuditEntry" }

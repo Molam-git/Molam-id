@@ -1,0 +1,46 @@
+{
+  "name": "@molam/ui-id-desktop",
+  "version": "1.0.0",
+  "description": "Molam ID Desktop App - Electron wrapper",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.molam.id.desktop",
+    "productName": "Molam ID",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "icon.icns",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "icon.png",
+      "category": "Utility"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.0"
+  },
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.0"
+  }
+}

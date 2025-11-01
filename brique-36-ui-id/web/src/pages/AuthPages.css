@@ -1,0 +1,100 @@
+.auth-page {
+  min-height: calc(100vh - 64px - 80px);
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-xl) 0;
+  background-color: var(--color-bg-secondary);
+}
+
+.auth-card {
+  max-width: 500px;
+  margin: 0 auto;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--border-radius) * 2);
+  padding: var(--spacing-xl);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.auth-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-sm);
+}
+
+.auth-subtitle {
+  color: var(--color-text-muted);
+  font-size: 1rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.btn-block {
+  width: 100%;
+  margin-top: var(--spacing-md);
+}
+
+.auth-link {
+  color: var(--color-primary);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.auth-link:hover {
+  color: #0052a3;
+  text-decoration: underline;
+}
+
+.auth-footer {
+  margin-top: var(--spacing-lg);
+  text-align: center;
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-top: 0.25rem;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    padding: var(--spacing-lg);
+  }
+
+  .auth-title {
+    font-size: 1.5rem;
+  }
+}

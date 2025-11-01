@@ -1,0 +1,60 @@
+{
+  "name": "@molam/id-sdk",
+  "version": "1.0.0",
+  "description": "Molam ID SDK for Web and Node.js - Official authentication library",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./storage": {
+      "import": "./dist/storage.js",
+      "require": "./dist/storage.cjs",
+      "types": "./dist/storage.d.ts"
+    },
+    "./fingerprint": {
+      "import": "./dist/fingerprint.js",
+      "require": "./dist/fingerprint.cjs",
+      "types": "./dist/fingerprint.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "molam",
+    "authentication",
+    "identity",
+    "sdk",
+    "oauth",
+    "jwt"
+  ],
+  "author": "Molam",
+  "license": "MIT",
+  "dependencies": {
+    "cross-fetch": "^4.0.0",
+    "jwt-decode": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0",
+    "@types/node": "^20.11.0",
+    "eslint": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
+}

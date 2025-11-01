@@ -1,0 +1,91 @@
+═══════════════════════════════════════════════════════════════
+  ✅ PROBLÈME DE CONNEXION - RÉSOLU !
+═══════════════════════════════════════════════════════════════
+
+Le problème: Le signup et le login utilisaient des méthodes
+différentes pour vérifier le mot de passe.
+
+CORRIGÉ: Maintenant les deux utilisent le même système (avec pepper).
+
+───────────────────────────────────────────────────────────────
+  🚀 POUR QUE ÇA FONCTIONNE (3 étapes)
+───────────────────────────────────────────────────────────────
+
+ÉTAPE 1: Redémarrer le Backend
+  1. Trouvez la fenêtre du backend (port 3000)
+  2. Appuyez sur Ctrl + C pour l'arrêter
+  3. Relancez-le:
+     → Double-cliquez sur: restart-backend.bat
+     → OU: cd au dossier racine et tapez: npm start
+
+ÉTAPE 2: Créer un NOUVEAU compte
+  ⚠️ IMPORTANT: Les anciens comptes ne fonctionneront plus
+
+  Pourquoi? Le système de hashage a changé.
+
+  Solution:
+  1. Allez sur http://localhost:5173
+  2. Cliquez "Créer un compte"
+  3. Utilisez de NOUVEAUX identifiants:
+     - Téléphone: +221700000001 (ou autre numéro)
+     - Mot de passe: VotreNouveauMdp123!
+  4. Créez le compte
+
+ÉTAPE 3: Testez la Connexion
+  1. Déconnectez-vous (si connecté)
+  2. Cliquez "Connexion"
+  3. Entrez les MÊMES identifiants que l'étape 2
+  4. Ça devrait fonctionner ! ✅
+
+───────────────────────────────────────────────────────────────
+  🔧 CE QUI A ÉTÉ CORRIGÉ
+───────────────────────────────────────────────────────────────
+
+AVANT:
+  Signup: hashPassword(mdp) → avec PEPPER ✅
+  Login:  bcrypt.compare(mdp, hash) → SANS pepper ❌
+  → Les mots de passe ne correspondaient jamais !
+
+MAINTENANT:
+  Signup: hashPassword(mdp) → avec PEPPER ✅
+  Login:  verifyPasswordWithPepper(mdp, hash) → avec PEPPER ✅
+  → Les mots de passe correspondent maintenant !
+
+───────────────────────────────────────────────────────────────
+  ⚠️ IMPORTANT
+───────────────────────────────────────────────────────────────
+
+Les comptes créés AVANT cette correction ne fonctionneront plus.
+
+SOLUTION: Créez un nouveau compte (ça prend 30 secondes).
+
+───────────────────────────────────────────────────────────────
+  🧪 TEST COMPLET
+───────────────────────────────────────────────────────────────
+
+1. ✅ Backend redémarré
+2. ✅ Créer nouveau compte avec:
+   - Tel: +221700111222
+   - Mdp: Test123Test!
+3. ✅ Se déconnecter
+4. ✅ Se reconnecter avec les MÊMES identifiants
+5. ✅ Ça marche !
+
+───────────────────────────────────────────────────────────────
+  📊 CHECKLIST
+───────────────────────────────────────────────────────────────
+
+[ ] Backend arrêté (Ctrl + C)
+[ ] Backend redémarré (restart-backend.bat)
+[ ] Nouveau compte créé
+[ ] Test de connexion réussi
+
+═══════════════════════════════════════════════════════════════
+
+RÉSUMÉ:
+1. Redémarrez le backend
+2. Créez un NOUVEAU compte
+3. Testez la connexion
+4. Ça devrait marcher ! 🎉
+
+═══════════════════════════════════════════════════════════════

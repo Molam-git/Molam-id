@@ -1,0 +1,161 @@
+# =============================================================================
+# Prometheus Configuration for Molam-ID
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'molam-id'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Rule files
+# rule_files:
+#   - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # API Gateway
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['molam-api-gateway:3000']
+    metrics_path: '/metrics'
+
+  # Core ID
+  - job_name: 'id-core'
+    static_configs:
+      - targets: ['molam-id-core:3001']
+    metrics_path: '/metrics'
+
+  # Authentication & Security Services (Briques 6-11)
+  - job_name: 'id-password-reset'
+    static_configs:
+      - targets: ['id-password-reset:8085']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-biometrics'
+    static_configs:
+      - targets: ['id-biometrics:8080']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-voice-auth'
+    static_configs:
+      - targets: ['id-voice-auth:8081']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-geo'
+    static_configs:
+      - targets: ['id-geo:3009']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-device'
+    static_configs:
+      - targets: ['id-device:8083']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-mfa'
+    static_configs:
+      - targets: ['id-mfa:8084']
+    metrics_path: '/metrics'
+
+  # Delegation & Control Services (Briques 12-15)
+  - job_name: 'id-delegation'
+    static_configs:
+      - targets: ['id-delegation:3012']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-blacklist'
+    static_configs:
+      - targets: ['id-blacklist:3013']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-audit'
+    static_configs:
+      - targets: ['id-audit:3014']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-i18n'
+    static_configs:
+      - targets: ['id-i18n:3015']
+    metrics_path: '/metrics'
+
+  # Data & Profile Services (Briques 16-19)
+  - job_name: 'id-fx'
+    static_configs:
+      - targets: ['id-fx:3016']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-profile'
+    static_configs:
+      - targets: ['id-profile:3017']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-update-profile'
+    static_configs:
+      - targets: ['id-update-profile:3018']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-export-profile'
+    static_configs:
+      - targets: ['id-export-profile:3019']
+    metrics_path: '/metrics'
+
+  # RBAC & Authorization Services (Briques 20-23)
+  - job_name: 'id-rbac-granular'
+    static_configs:
+      - targets: ['id-rbac-granular:3020']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-role-mgmt'
+    static_configs:
+      - targets: ['id-role-mgmt:3021']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-admin'
+    static_configs:
+      - targets: ['id-admin:3022']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-sessions-monitoring'
+    static_configs:
+      - targets: ['id-sessions-monitoring:3023']
+    metrics_path: '/metrics'
+
+  # Admin Services (Briques 33-34)
+  - job_name: 'id-api-admin'
+    static_configs:
+      - targets: ['id-api-admin:3033']
+    metrics_path: '/metrics'
+
+  - job_name: 'id-sessions-advanced'
+    static_configs:
+      - targets: ['id-sessions-advanced:3034']
+    metrics_path: '/metrics'
+
+  # Infrastructure
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    # Note: Requires postgres_exporter sidecar
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    # Note: Requires redis_exporter sidecar
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+    # Note: Requires kafka_exporter sidecar

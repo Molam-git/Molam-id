@@ -1,0 +1,869 @@
+version: '3.8'
+
+# =============================================================================
+# MOLAM-ID - ORCHESTRATION COMPLÈTE DES 34 BRIQUES
+# =============================================================================
+# Ce fichier orchestre tous les services de l'écosystème Molam-ID
+# Architecture: 34 microservices + infrastructure partagée (PostgreSQL, Redis, Kafka, etc.)
+# =============================================================================
+
+networks:
+  molam-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
+  zookeeper_data:
+
+services:
+  # ===========================================================================
+  # INFRASTRUCTURE PARTAGÉE
+  # ===========================================================================
+
+  # Base de données PostgreSQL principale
+  postgres:
+    image: postgres:15-alpine
+    container_name: molam-postgres
+    environment:
+      POSTGRES_USER: molam
+      POSTGRES_PASSWORD: molam_pass
+      POSTGRES_DB: molam
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U molam"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Cache Redis
+  redis:
+    image: redis:7-alpine
+    container_name: molam-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Kafka (Event Streaming)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: molam-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - molam-network
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: molam-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - molam-network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # API GATEWAY (Point d'entrée unifié)
+  # ===========================================================================
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: molam-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUES 1-5: CORE IDENTITY (Monolithe principal)
+  # ===========================================================================
+
+  molam-id-core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: molam-id-core
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-votre_secret_jwt_super_securise}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-votre_refresh_secret_super_securise}
+      - JWT_AUDIENCE=molam-id
+      - JWT_ISSUER=https://id.molam.com
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - molam-network
+    volumes:
+      - ./src:/app/src:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 6: PASSWORD RESET
+  # ===========================================================================
+
+  id-password-reset:
+    build:
+      context: ./brique-06-password-reset
+      dockerfile: Dockerfile
+    container_name: molam-password-reset
+    ports:
+      - "8085:8085"
+    environment:
+      - NODE_ENV=production
+      - PORT=8085
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_ENABLED=true
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_AUDIENCE=molam-id
+      - JWT_ISSUER=https://id.molam.com
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 7: BIOMETRICS
+  # ===========================================================================
+
+  id-biometrics:
+    build:
+      context: ./brique-07-biometrics
+      dockerfile: Dockerfile
+    container_name: molam-biometrics
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_AUDIENCE=molam-id
+      - JWT_ISSUER=https://id.molam.com
+      - WEBAUTHN_RP_NAME=Molam ID
+      - WEBAUTHN_RP_ID=id.molam.com
+      - WEBAUTHN_ORIGIN=https://id.molam.com
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 8: VOICE AUTH
+  # ===========================================================================
+
+  id-voice-auth:
+    build:
+      context: ./brique-08-voice-auth
+      dockerfile: Dockerfile
+    container_name: molam-voice-auth
+    ports:
+      - "8081:8081"
+    environment:
+      - NODE_ENV=production
+      - PORT=8081
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_AUDIENCE=molam-id
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - S3_BUCKET=${S3_BUCKET_VOICE:-molam-voice-auth}
+      - MAX_AUDIO_SEC=30
+      - VOICE_ML_URL=http://voice-ml:9000
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 9: GEO & TIMEZONE
+  # ===========================================================================
+
+  id-geo:
+    build:
+      context: ./brique-09-geo
+      dockerfile: Dockerfile
+    container_name: molam-geo
+    ports:
+      - "3009:3009"
+    environment:
+      - NODE_ENV=production
+      - PORT=3009
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - MAXMIND_LICENSE_KEY=${MAXMIND_LICENSE_KEY}
+      - AUDIT_SERVICE_URL=http://id-audit:3014
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 10: DEVICE FINGERPRINTING
+  # ===========================================================================
+
+  id-device:
+    build:
+      context: ./brique-10-device
+      dockerfile: Dockerfile
+    container_name: molam-device
+    ports:
+      - "8083:8083"
+    environment:
+      - NODE_ENV=production
+      - PORT=8083
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_AUDIENCE=molam-id
+      - JWT_ISSUER=https://id.molam.com
+    depends_on:
+      - postgres
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 11: MFA/2FA
+  # ===========================================================================
+
+  id-mfa:
+    build:
+      context: ./brique-11-mfa
+      dockerfile: Dockerfile
+    container_name: molam-mfa
+    ports:
+      - "8084:8084"
+    environment:
+      - NODE_ENV=production
+      - PORT=8084
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_AUDIENCE=molam-id
+      - JWT_ISSUER=https://id.molam.com
+      - MFA_ISSUER=Molam ID
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 12: DELEGATION
+  # ===========================================================================
+
+  id-delegation:
+    build:
+      context: ./brique-12-delegation
+      dockerfile: Dockerfile
+    container_name: molam-delegation
+    ports:
+      - "3012:3012"
+    environment:
+      - NODE_ENV=production
+      - PORT=3012
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_AUDIENCE=molam-id
+      - AUDIT_SERVICE_URL=http://id-audit:3014
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3012/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 13: BLACKLIST & SUSPENSIONS
+  # ===========================================================================
+
+  id-blacklist:
+    build:
+      context: ./brique-13-blacklist
+      dockerfile: Dockerfile
+    container_name: molam-blacklist
+    ports:
+      - "3013:3013"
+    environment:
+      - NODE_ENV=production
+      - PORT=3013
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_AUDIENCE=molam-id
+      - SIRA_ENABLED=true
+      - SIRA_URL=http://sira:8080
+      - AUDIT_SERVICE_URL=http://id-audit:3014
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3013/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 14: AUDIT LOGS (Central Hub)
+  # ===========================================================================
+
+  id-audit:
+    build:
+      context: ./brique-14-audit
+      dockerfile: Dockerfile
+    container_name: molam-audit
+    ports:
+      - "3014:3014"
+    environment:
+      - NODE_ENV=production
+      - PORT=3014
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_ENABLED=true
+      - S3_BUCKET=${S3_BUCKET_AUDIT:-molam-audit-logs}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3014/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 15: i18n/MULTILINGUE
+  # ===========================================================================
+
+  id-i18n:
+    build:
+      context: ./brique-15-i18n
+      dockerfile: Dockerfile
+    container_name: molam-i18n
+    ports:
+      - "3015:3015"
+    environment:
+      - NODE_ENV=production
+      - PORT=3015
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - S3_BUCKET=${S3_BUCKET_I18N:-molam-i18n-bundles}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3015/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 16: FX/MULTICURRENCY
+  # ===========================================================================
+
+  id-fx:
+    build:
+      context: ./brique-16-fx
+      dockerfile: Dockerfile
+    container_name: molam-fx
+    ports:
+      - "3016:3016"
+    environment:
+      - NODE_ENV=production
+      - PORT=3016
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3016/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 17: USER PROFILE
+  # ===========================================================================
+
+  id-profile:
+    build:
+      context: ./brique-17-profile
+      dockerfile: Dockerfile
+    container_name: molam-profile
+    ports:
+      - "3017:3017"
+    environment:
+      - NODE_ENV=production
+      - PORT=3017
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - S3_BUCKET=${S3_BUCKET_AVATARS:-molam-avatars}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3017/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 18: UPDATE PROFILE
+  # ===========================================================================
+
+  id-update-profile:
+    build:
+      context: ./brique-18-update-profile
+      dockerfile: Dockerfile
+    container_name: molam-update-profile
+    ports:
+      - "3018:3018"
+    environment:
+      - NODE_ENV=production
+      - PORT=3018
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3018/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 19: EXPORT PROFILE
+  # ===========================================================================
+
+  id-export-profile:
+    build:
+      context: ./brique-19-export-profile
+      dockerfile: Dockerfile
+    container_name: molam-export-profile
+    ports:
+      - "3019:3019"
+    environment:
+      - NODE_ENV=production
+      - PORT=3019
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - S3_BUCKET=${S3_BUCKET_EXPORTS:-molam-profile-exports}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3019/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 20: RBAC GRANULAR
+  # ===========================================================================
+
+  id-rbac-granular:
+    build:
+      context: ./brique-20-rbac-granular
+      dockerfile: Dockerfile
+    container_name: molam-rbac-granular
+    ports:
+      - "3020:3020"
+    environment:
+      - NODE_ENV=production
+      - PORT=3020
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 21: ROLE MANAGEMENT
+  # ===========================================================================
+
+  id-role-mgmt:
+    build:
+      context: ./brique-21-role-mgmt
+      dockerfile: Dockerfile
+    container_name: molam-role-mgmt
+    ports:
+      - "3021:3021"
+    environment:
+      - NODE_ENV=production
+      - PORT=3021
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_ENABLED=true
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3021/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 22: ADMIN ID
+  # ===========================================================================
+
+  id-admin:
+    build:
+      context: ./brique-22-admin-id
+      dockerfile: Dockerfile
+    container_name: molam-admin-id
+    ports:
+      - "3022:3022"
+    environment:
+      - NODE_ENV=production
+      - PORT=3022
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_ENABLED=true
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - VAULT_ENABLED=true
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3022/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 23: SESSIONS MONITORING
+  # ===========================================================================
+
+  id-sessions-monitoring:
+    build:
+      context: ./brique-23-sessions-monitoring
+      dockerfile: Dockerfile
+    container_name: molam-sessions-monitoring
+    ports:
+      - "3023:3023"
+    environment:
+      - NODE_ENV=production
+      - PORT=3023
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3023/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 33: API ADMIN
+  # ===========================================================================
+
+  id-api-admin:
+    build:
+      context: ./brique-33-api-admin
+      dockerfile: Dockerfile
+    container_name: molam-api-admin
+    ports:
+      - "3033:3033"
+    environment:
+      - NODE_ENV=production
+      - PORT=3033
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_ENABLED=true
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3033/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 34: ADVANCED SESSIONS MONITORING (with Anomaly Detection)
+  # ===========================================================================
+
+  id-sessions-advanced:
+    build:
+      context: ./brique-34-sessions-monitoring
+      dockerfile: Dockerfile
+    container_name: molam-sessions-advanced
+    ports:
+      - "3034:3034"
+    environment:
+      - NODE_ENV=production
+      - PORT=3034
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+      - REDIS_URL=redis://redis:6379
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - JWT_AUDIENCE=molam-id
+      - JWT_ISSUER=https://id.molam.com
+      - WORM_SIGNING_SECRET=${WORM_SIGNING_SECRET}
+      - SIRA_ENABLED=true
+      - SIRA_URL=http://sira:8080
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3034/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 36: UI DE GESTION ID (API Backend)
+  # ===========================================================================
+
+  id-ui-api:
+    build:
+      context: ./brique-36-ui-id/api
+      dockerfile: Dockerfile
+    container_name: molam-ui-id-api
+    ports:
+      - "3036:3036"
+    environment:
+      - NODE_ENV=production
+      - PORT=3036
+      - DATABASE_URL=postgresql://molam:molam_pass@postgres:5432/molam
+    depends_on:
+      - postgres
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3036/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # BRIQUE 36: UI DE GESTION ID (Web Frontend)
+  # ===========================================================================
+
+  id-ui-web:
+    build:
+      context: ./brique-36-ui-id/web
+      dockerfile: Dockerfile
+    container_name: molam-ui-id-web
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    depends_on:
+      - api-gateway
+    networks:
+      - molam-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # OBSERVABILITÉ & MONITORING
+  # ===========================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: molam-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - molam-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: molam-grafana
+    ports:
+      - "3100:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - molam-network
+    restart: unless-stopped

@@ -1,0 +1,247 @@
+═══════════════════════════════════════════════════════════════
+  🐛 DEBUG LOGIN - PROCÉDURE COMPLÈTE
+═══════════════════════════════════════════════════════════════
+
+Vous ne pouvez pas vous connecter? Suivez cette procédure
+EXACTEMENT dans l'ordre pour identifier le problème.
+
+───────────────────────────────────────────────────────────────
+  ÉTAPE 1: REDÉMARRER LE BACKEND (OBLIGATOIRE!)
+───────────────────────────────────────────────────────────────
+
+Le backend DOIT être redémarré pour avoir les corrections.
+
+1. Trouvez la fenêtre PowerShell du BACKEND
+   (celle qui affiche "Server listening on port 3000")
+
+2. Appuyez sur Ctrl + C pour l'arrêter
+
+3. Attendez 2 secondes
+
+4. Lancez: restart-backend.bat
+   OU: npm start dans le dossier racine
+
+5. Attendez de voir:
+   "📡 Server listening on port 3000"
+   "✅ Test de connexion réussi"
+
+⚠️ SI VOUS SAUTEZ CETTE ÉTAPE, LE LOGIN NE FONCTIONNERA PAS!
+
+───────────────────────────────────────────────────────────────
+  ÉTAPE 2: SUPPRIMER TOUS LES ANCIENS COMPTES
+───────────────────────────────────────────────────────────────
+
+Les comptes créés AVANT les corrections ne fonctionneront jamais.
+
+Pourquoi? Le système de hashage a changé.
+
+IMPORTANT: Si vous essayez de vous connecter avec un ancien
+compte, vous aurez TOUJOURS "Invalid credentials".
+
+Solution: Créez un NOUVEAU compte (voir étape 3).
+
+───────────────────────────────────────────────────────────────
+  ÉTAPE 3: CRÉER UN NOUVEAU COMPTE DE TEST
+───────────────────────────────────────────────────────────────
+
+1. Allez sur: http://localhost:5173
+
+2. Cliquez "Créer un compte"
+
+3. Utilisez CES identifiants EXACTEMENT:
+   ┌─────────────────────────────────────────┐
+   │ Téléphone: +221700000001                │
+   │ Mot de passe: TestDebug123!             │
+   │ Prénom: Debug                           │
+   │ Nom: Test                               │
+   └─────────────────────────────────────────┘
+
+4. Cliquez "S'inscrire"
+
+5. Vérifiez que le compte est créé
+   → Vous devriez voir votre profil
+   → Avec "Debug Test" affiché
+
+───────────────────────────────────────────────────────────────
+  ÉTAPE 4: SE DÉCONNECTER
+───────────────────────────────────────────────────────────────
+
+1. Cliquez sur "Déconnexion" dans le menu
+
+2. Vous devriez revenir à la page de connexion
+
+───────────────────────────────────────────────────────────────
+  ÉTAPE 5: REGARDER LES LOGS DU BACKEND
+───────────────────────────────────────────────────────────────
+
+TRÈS IMPORTANT: Préparez-vous à voir les logs.
+
+1. Trouvez la fenêtre PowerShell du backend
+2. Positionnez-la à côté de votre navigateur
+3. Vous allez voir des logs avec des emojis:
+   🔐 Login attempt
+   🔍 Searching user
+   👤 User found
+   🔑 Verifying password
+   ✅ ou ❌
+
+───────────────────────────────────────────────────────────────
+  ÉTAPE 6: TESTER LE LOGIN
+───────────────────────────────────────────────────────────────
+
+1. Sur la page de connexion, entrez EXACTEMENT:
+   ┌─────────────────────────────────────────┐
+   │ Identifiant: +221700000001              │
+   │ Mot de passe: TestDebug123!             │
+   └─────────────────────────────────────────┘
+
+2. Cliquez "Se connecter"
+
+3. REGARDEZ IMMÉDIATEMENT la fenêtre du backend
+
+4. Vous devriez voir apparaître des logs
+
+───────────────────────────────────────────────────────────────
+  ÉTAPE 7: ANALYSER LES LOGS
+───────────────────────────────────────────────────────────────
+
+Dans la fenêtre du backend, vous verrez:
+
+CAS 1: Login réussi ✅
+```
+🔐 Login attempt: { phone: '+221700000001', ... }
+🔍 Searching user with: ...
+👤 User found: YES
+🔑 Verifying password with pepper...
+🔑 Password match: YES ✅
+✅ Password verified successfully
+```
+→ Le login devrait marcher!
+
+CAS 2: Utilisateur non trouvé ❌
+```
+🔐 Login attempt: { phone: '+221700000001', ... }
+🔍 Searching user with: ...
+👤 User found: NO
+```
+→ Le compte n'existe pas
+→ Vérifiez le numéro de téléphone
+→ Recréez un compte
+
+CAS 3: Mot de passe incorrect ❌
+```
+🔐 Login attempt: { phone: '+221700000001', ... }
+🔍 Searching user with: ...
+👤 User found: YES
+🔑 Verifying password with pepper...
+🔑 Password match: NO ❌
+❌ Login failed: Invalid password
+```
+→ C'est un ANCIEN compte (créé avant les corrections)
+→ Créez un NOUVEAU compte
+
+CAS 4: Rien ne s'affiche ❌
+→ Le backend n'a pas été redémarré
+→ Retournez à l'ÉTAPE 1
+
+───────────────────────────────────────────────────────────────
+  🧪 TEST AVEC CURL (Alternative)
+───────────────────────────────────────────────────────────────
+
+Vous pouvez tester directement avec curl:
+
+1. CRÉER UN COMPTE avec curl:
+```powershell
+curl -X POST http://localhost:3000/api/id/auth/signup `
+  -H "Content-Type: application/json" `
+  -d '{\"phone\":\"+221700000002\",\"password\":\"CurlTest123!\",\"firstName\":\"Curl\",\"lastName\":\"Test\"}'
+```
+
+2. SE CONNECTER avec curl:
+```powershell
+curl -X POST http://localhost:3000/api/id/auth/login `
+  -H "Content-Type: application/json" `
+  -d '{\"phone\":\"+221700000002\",\"password\":\"CurlTest123!\"}'
+```
+
+Si curl fonctionne mais pas le Web UI:
+→ Le problème vient du frontend
+→ Redémarrez le Web UI
+
+Si curl ne fonctionne pas non plus:
+→ Le problème vient du backend
+→ Le backend n'a pas été redémarré
+
+───────────────────────────────────────────────────────────────
+  ✅ CHECKLIST DE DIAGNOSTIC
+───────────────────────────────────────────────────────────────
+
+Cochez ce que vous avez fait:
+
+[ ] Backend ARRÊTÉ avec Ctrl + C
+[ ] Backend REDÉMARRÉ avec restart-backend.bat
+[ ] Vu le message "Server listening on port 3000"
+[ ] Nouveau compte créé (+221700000001)
+[ ] Déconnecté
+[ ] Logs backend visibles
+[ ] Tenté login avec les MÊMES identifiants
+[ ] Regardé les logs qui apparaissent
+
+───────────────────────────────────────────────────────────────
+  📊 RÉSULTATS POSSIBLES
+───────────────────────────────────────────────────────────────
+
+Après avoir suivi TOUTES les étapes:
+
+A) ✅ Ça marche maintenant!
+   → Les logs montrent "Password match: YES ✅"
+   → Vous êtes connecté
+
+B) ❌ User found: NO
+   → Le compte n'existe pas dans la DB
+   → Le téléphone est mal formaté
+   → Recréez le compte avec +221700000001
+
+C) ❌ Password match: NO
+   → C'est un ancien compte
+   → Créez un NOUVEAU compte APRÈS avoir redémarré
+
+D) ❌ Aucun log ne s'affiche
+   → Le backend n'est PAS redémarré
+   → Recommencez l'ÉTAPE 1
+
+───────────────────────────────────────────────────────────────
+  🆘 SI ÇA NE MARCHE TOUJOURS PAS
+───────────────────────────────────────────────────────────────
+
+Copiez-moi EXACTEMENT:
+
+1. Les logs qui apparaissent dans le backend
+   (de 🔐 Login attempt jusqu'à la fin)
+
+2. Le numéro de téléphone que vous utilisez
+
+3. Quand avez-vous créé le compte ?
+   - Avant de redémarrer le backend? → Ancien compte
+   - Après avoir redémarré le backend? → Devrait marcher
+
+4. Le message d'erreur exact dans le navigateur
+
+═══════════════════════════════════════════════════════════════
+
+RÉSUMÉ DES 7 ÉTAPES:
+  1. Redémarrer backend (Ctrl + C puis restart-backend.bat)
+  2. Oubliez les anciens comptes (ne marcheront pas)
+  3. Créer NOUVEAU compte (+221700000001 / TestDebug123!)
+  4. Se déconnecter
+  5. Préparer les logs (fenêtre backend visible)
+  6. Tenter login (+221700000001 / TestDebug123!)
+  7. Analyser les logs du backend
+
+═══════════════════════════════════════════════════════════════
+
+FAITES TOUTES CES ÉTAPES ET DITES-MOI:
+  - Ce que disent les logs (CAS 1, 2, 3 ou 4)
+  - À quelle étape vous êtes bloqué
+
+═══════════════════════════════════════════════════════════════
