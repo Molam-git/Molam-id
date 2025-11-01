@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useMolamId } from '../contexts/AuthContext';
 import { useTTS } from '../contexts/TTSContext';
 import { Smartphone, Monitor, Globe, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import './SessionsPage.css';
+
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
 
 interface Session {
   id: string;
@@ -17,7 +18,6 @@ interface Session {
 }
 
 export default function SessionsPage() {
-  const { client } = useMolamId();
   const { speak } = useTTS();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,11 +30,33 @@ export default function SessionsPage() {
   const loadSessions = async () => {
     try {
       setLoading(true);
-      const data = await client.listMySessions();
+      setError('');
+
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setError('Non authentifié');
+        setLoading(false);
+        return;
+      }
+
+      console.log('📋 Loading sessions...');
+      const response = await fetch(`${API_URL}/api/id/sessions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors du chargement des sessions');
+      }
+
+      const data = await response.json();
+      console.log('📋 Sessions loaded:', data);
       setSessions(data.sessions || []);
     } catch (err: any) {
-      setError('Erreur lors du chargement des sessions');
-      console.error(err);
+      const errorMsg = err.message || 'Erreur lors du chargement des sessions';
+      setError(errorMsg);
+      console.error('Sessions error:', err);
     } finally {
       setLoading(false);
     }
@@ -46,7 +68,23 @@ export default function SessionsPage() {
     }
 
     try {
-      await client.revokeSession(sessionId);
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setError('Non authentifié');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/id/sessions/${sessionId}/revoke`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la révocation');
+      }
+
       speak('Session révoquée avec succès');
       await loadSessions();
     } catch (err: any) {

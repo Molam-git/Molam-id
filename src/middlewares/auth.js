@@ -19,7 +19,10 @@ export async function requireAuth(req, res, next) {
     // Get token from Authorization header
     const authHeader = req.headers.authorization;
 
+    console.log('🔐 Auth middleware - Header:', authHeader ? 'Present' : 'Missing');
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('❌ Auth failed: No token provided');
       return res.status(401).json({
         error: 'No token provided',
         code: 'NO_TOKEN'
@@ -27,6 +30,7 @@ export async function requireAuth(req, res, next) {
     }
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    console.log('🔐 Token extracted, length:', token.length);
 
     // Check if token is revoked
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -47,7 +51,9 @@ export async function requireAuth(req, res, next) {
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
+      console.log('✅ Token verified, user_id:', decoded.user_id);
     } catch (error) {
+      console.log('❌ Token verification failed:', error.message);
       if (error.name === 'TokenExpiredError') {
         return res.status(401).json({
           error: 'Token expired',
@@ -61,12 +67,14 @@ export async function requireAuth(req, res, next) {
     }
 
     // Verify user still exists and is active
+    console.log('🔍 Looking up user:', decoded.user_id);
     const userResult = await pool.query(
-      'SELECT id, molam_id, email, user_role, user_status FROM molam_users WHERE id = $1',
+      'SELECT id, molam_id, email, user_type, status FROM molam_users WHERE id = $1',
       [decoded.user_id]
     );
 
     if (userResult.rows.length === 0) {
+      console.log('❌ User not found in database');
       return res.status(401).json({
         error: 'User not found',
         code: 'USER_NOT_FOUND'
@@ -74,12 +82,14 @@ export async function requireAuth(req, res, next) {
     }
 
     const user = userResult.rows[0];
+    console.log('👤 User found:', user.id, 'Status:', user.status);
 
-    if (user.user_status !== 'active') {
+    if (user.status !== 'active') {
+      console.log('❌ User not active:', user.status);
       return res.status(403).json({
         error: 'Account is not active',
         code: 'ACCOUNT_INACTIVE',
-        status: user.user_status
+        status: user.status
       });
     }
 
@@ -88,9 +98,10 @@ export async function requireAuth(req, res, next) {
       user_id: user.id,
       molam_id: user.molam_id,
       email: user.email,
-      role: user.user_role
+      role: user.user_type
     };
 
+    console.log('✅ Auth successful for user:', user.id);
     next();
 
   } catch (error) {
@@ -142,17 +153,17 @@ export async function optionalAuth(req, res, next) {
 
     // Get user info
     const userResult = await pool.query(
-      'SELECT id, molam_id, email, user_role, user_status FROM molam_users WHERE id = $1',
+      'SELECT id, molam_id, email, user_type, status FROM molam_users WHERE id = $1',
       [decoded.user_id]
     );
 
-    if (userResult.rows.length > 0 && userResult.rows[0].user_status === 'active') {
+    if (userResult.rows.length > 0 && userResult.rows[0].status === 'active') {
       const user = userResult.rows[0];
       req.user = {
         user_id: user.id,
         molam_id: user.molam_id,
         email: user.email,
-        role: user.user_role
+        role: user.user_type
       };
     }
 

@@ -222,6 +222,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    console.log('🌍 Language changed to:', language);
+
     // Sauvegarder la langue dans localStorage
     localStorage.setItem('language', language);
 
@@ -230,11 +232,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [language]);
 
   const setLanguage = (lang: Language) => {
+    console.log('🌍 Changing language to:', lang);
     setLanguageState(lang);
   };
 
   const t = (key: string): string => {
-    return translations[language][key] || key;
+    const translation = translations[language][key] || key;
+    // Uncomment for debugging: console.log(`t('${key}') [${language}] =>`, translation);
+    return translation;
   };
 
   return (
