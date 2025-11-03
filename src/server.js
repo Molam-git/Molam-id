@@ -36,7 +36,40 @@ import {
 // Routes Auth (SDK compatibility)
 import { authSignup } from "./routes/auth/signup.js";
 
-// Routes Brique 6 (AuthZ & RBAC)
+// Routes Brique 6 (Password Reset)
+import {
+  forgotPassword,
+  resetPassword,
+  changePassword
+} from "./routes/password/reset.js";
+
+// Routes Brique 11 (MFA/2FA)
+import {
+  setupMFA,
+  enableMFA,
+  verifyMFA,
+  disableMFA,
+  getMFAStatus
+} from "./routes/mfa/index.js";
+
+// Routes Brique 10 (Device Fingerprinting)
+import {
+  registerDevice,
+  listMyDevices,
+  removeDevice,
+  getDeviceSessions,
+  updateDeviceTrust
+} from "./routes/devices/index.js";
+
+// Routes Brique 13 (Blacklist)
+import {
+  checkBlacklist,
+  addToBlacklist,
+  removeFromBlacklist,
+  listBlacklist
+} from "./routes/blacklist/index.js";
+
+// Routes Brique 6 AuthZ (AuthZ & RBAC)
 import { authzDecide } from "./routes/authz/decide.js";
 import {
   getUserRolesHandler,
@@ -102,7 +135,7 @@ app.get("/", (req, res) => {
     service: "Molam-ID Core",
     version: "1.0.0",
     status: "running",
-    briques: ["1-Auth", "2-Sessions", "3-JWT", "4-Onboarding", "5-LoginV2", "6-AuthZ"],
+    briques: ["1-Auth", "2-Sessions", "3-JWT", "4-Onboarding", "5-LoginV2", "6-AuthZ", "6-Password", "10-Devices", "11-MFA", "13-Blacklist"],
     timestamp: new Date().toISOString(),
     environment: NODE_ENV
   };
@@ -356,8 +389,8 @@ molam_id_core_uptime_seconds ${process.uptime()}
 // =============================================================================
 // Ces routes sont maintenues pour la rétrocompatibilité
 
-app.post("/api/signup", signup);                    // Inscription legacy
-app.post("/api/login", login);                      // Connexion legacy
+app.post("/api/signup", checkBlacklist, signup);                    // Inscription legacy
+app.post("/api/login", checkBlacklist, login);                      // Connexion legacy
 app.post("/api/refresh", refresh);                  // Refresh token legacy
 app.post("/api/logout", logout);                    // Déconnexion legacy
 
@@ -366,7 +399,7 @@ app.post("/api/logout", logout);                    // Déconnexion legacy
 // =============================================================================
 // Inscription en 3 étapes pour Mobile, Web, USSD
 
-app.post("/api/id/signup/init", signupInit);        // Étape 1: Initialisation
+app.post("/api/id/signup/init", checkBlacklist, signupInit);        // Étape 1: Initialisation
 app.post("/api/id/signup/verify", signupVerify);    // Étape 2: Vérification (OTP)
 app.post("/api/id/signup/complete", signupComplete); // Étape 3: Finalisation
 
@@ -376,9 +409,9 @@ app.post("/api/id/signup/complete", signupComplete); // Étape 3: Finalisation
 // Login avancé avec 2FA, device binding, et gestion de sessions
 
 // Authentication V2
-app.post("/api/id/auth/signup", authSignup);        // Direct signup (SDK)
-app.post("/api/id/login", loginV2);                 // Login V2 (multi-facteurs)
-app.post("/api/id/auth/login", loginV2);            // Alias pour SDK compatibility
+app.post("/api/id/auth/signup", checkBlacklist, authSignup);        // Direct signup (SDK)
+app.post("/api/id/login", checkBlacklist, loginV2);                 // Login V2 (multi-facteurs)
+app.post("/api/id/auth/login", checkBlacklist, loginV2);            // Alias pour SDK compatibility
 app.post("/api/id/refresh", refreshTokens);         // Refresh avec rotation
 app.post("/api/id/auth/refresh", refreshTokens);    // Alias pour SDK compatibility
 app.post("/api/id/logout", requireAuth, logoutV2);  // Logout avec révocation
@@ -387,6 +420,46 @@ app.post("/api/id/logout", requireAuth, logoutV2);  // Logout avec révocation
 app.get("/api/id/sessions", requireAuth, getSessions);                    // Lister mes sessions
 app.post("/api/id/sessions/:id/revoke", requireAuth, revokeSessionById);  // Révoquer une session
 app.post("/api/id/sessions/revoke-all", requireAuth, revokeAllSessions);  // Révoquer toutes
+
+// =============================================================================
+// ROUTES BRIQUE 6 (Password Reset)
+// =============================================================================
+// Réinitialisation sécurisée du mot de passe
+
+app.post("/api/id/password/forgot", forgotPassword);           // Demander reset (email)
+app.post("/api/id/password/reset", resetPassword);             // Reset avec token
+app.post("/api/id/password/change", requireAuth, changePassword); // Changer password (authentifié)
+
+// =============================================================================
+// ROUTES BRIQUE 11 (MFA/2FA)
+// =============================================================================
+// Multi-Factor Authentication avec TOTP (Google Authenticator)
+
+app.post("/api/id/mfa/setup", requireAuth, setupMFA);        // Initialiser MFA (QR code)
+app.post("/api/id/mfa/enable", requireAuth, enableMFA);      // Activer MFA après vérification
+app.post("/api/id/mfa/verify", requireAuth, verifyMFA);      // Vérifier code TOTP
+app.post("/api/id/mfa/disable", requireAuth, disableMFA);    // Désactiver MFA
+app.get("/api/id/mfa/status", requireAuth, getMFAStatus);    // Statut MFA
+
+// =============================================================================
+// ROUTES BRIQUE 10 (Device Fingerprinting)
+// =============================================================================
+// Identification et tracking des appareils
+
+app.post("/api/id/devices/register", requireAuth, registerDevice);           // Enregistrer device
+app.get("/api/id/devices", requireAuth, listMyDevices);                      // Lister mes devices
+app.delete("/api/id/devices/:id", requireAuth, removeDevice);                // Supprimer device
+app.get("/api/id/devices/:id/sessions", requireAuth, getDeviceSessions);     // Historique sessions d'un device
+app.post("/api/id/devices/:id/trust", requireAuth, updateDeviceTrust);       // Mettre à jour confiance
+
+// =============================================================================
+// ROUTES BRIQUE 13 (Blacklist & Anti-Fraude)
+// =============================================================================
+// Protection anti-fraude avec blacklist automatique et manuelle
+
+app.post("/api/id/blacklist/add", requireAuth, requireRole('id_admin'), addToBlacklist);       // Ajouter à blacklist (admin)
+app.delete("/api/id/blacklist/:id", requireAuth, requireRole('id_admin'), removeFromBlacklist); // Retirer de blacklist (admin)
+app.get("/api/id/blacklist", requireAuth, requireRole('id_admin'), listBlacklist);              // Lister blacklist (admin)
 
 // =============================================================================
 // ROUTES BRIQUE 6 (Authorization & RBAC)
@@ -438,7 +511,7 @@ const server = app.listen(PORT, () => {
   console.log('='.repeat(80));
   console.log(`📡 Server listening on port ${PORT}`);
   console.log(`🌍 Environment: ${NODE_ENV}`);
-  console.log(`📦 Briques: 1 (Auth), 2 (Sessions), 3 (JWT), 4 (Onboarding), 5 (LoginV2), 6 (AuthZ)`);
+  console.log(`📦 Briques: 1-5 (Auth Core), 6 (Password+AuthZ), 10 (Devices), 11 (MFA), 13 (Blacklist)`);
   console.log(`⏰ Started at: ${new Date().toISOString()}`);
   console.log('='.repeat(80));
   console.log('\n📋 Available endpoints:');
@@ -467,6 +540,26 @@ const server = app.listen(PORT, () => {
   console.log('  GET  /api/id/sessions          - List my sessions');
   console.log('  POST /api/id/sessions/:id/revoke - Revoke one session');
   console.log('  POST /api/id/sessions/revoke-all - Revoke all sessions');
+  console.log('\n🔐 Password Management:');
+  console.log('  POST /api/id/password/forgot   - Request password reset');
+  console.log('  POST /api/id/password/reset    - Reset password with token');
+  console.log('  POST /api/id/password/change   - Change password (auth required)');
+  console.log('\n🔐 MFA/2FA:');
+  console.log('  POST /api/id/mfa/setup         - Setup MFA (QR code)');
+  console.log('  POST /api/id/mfa/enable        - Enable MFA');
+  console.log('  POST /api/id/mfa/verify        - Verify TOTP code');
+  console.log('  POST /api/id/mfa/disable       - Disable MFA');
+  console.log('  GET  /api/id/mfa/status        - Get MFA status');
+  console.log('\n📱 Device Fingerprinting:');
+  console.log('  POST /api/id/devices/register  - Register device');
+  console.log('  GET  /api/id/devices           - List my devices');
+  console.log('  DEL  /api/id/devices/:id       - Remove device');
+  console.log('  GET  /api/id/devices/:id/sessions - Device session history');
+  console.log('  POST /api/id/devices/:id/trust - Update device trust');
+  console.log('\n🚫 Blacklist & Anti-Fraude (Admin):');
+  console.log('  POST /api/id/blacklist/add     - Add to blacklist');
+  console.log('  DEL  /api/id/blacklist/:id     - Remove from blacklist');
+  console.log('  GET  /api/id/blacklist         - List blacklist entries');
   console.log('\n🔒 Authorization & RBAC:');
   console.log('  POST /v1/authz/decide          - Authorization decision');
   console.log('  GET  /v1/authz/users/:userId/roles - Get user roles');
