@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Molam ID",
+    "slug": "molam-id-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "molamid",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.molam.id"
+    },
+    "android": {
+      "package": "com.molam.id"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

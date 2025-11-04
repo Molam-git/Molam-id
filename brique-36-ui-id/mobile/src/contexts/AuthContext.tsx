@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { MolamIdClient } from '@molam/sdk-auth';
+import { MolamIdClient } from '../lib/MolamIdClient';
+import { API_URL } from '../config/api';
 
 interface User {
   id: string;
@@ -23,8 +24,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const API_URL = 'http://localhost:3000'; // Update for production
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [client] = useState(() => new MolamIdClient({ apiUrl: API_URL }));
