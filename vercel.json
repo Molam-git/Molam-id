@@ -4,7 +4,7 @@
   "outputDirectory": "brique-36-ui-id/mobile/dist",
   "devCommand": "cd brique-36-ui-id/mobile && npm run start:web",
   "framework": null,
-  "installCommand": "cd brique-36-ui-id/mobile && npm install",
+  "installCommand": "cd brique-36-ui-id/mobile && npm install --legacy-peer-deps",
   "env": {
     "EXPO_PUBLIC_API_URL": "http://192.168.1.22:3000"
   },
