@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build:web",
+  "outputDirectory": "dist",
+  "devCommand": "npm run start:web",
+  "framework": "expo",
+  "installCommand": "npm install",
+  "env": {
+    "EXPO_PUBLIC_API_URL": "https://YOUR-NGROK-URL.ngrok.io"
+  },
+  "routes": [
+    {
+      "src": "/[^.]+",
+      "dest": "/",
+      "status": 200
+    }
+  ]
+}
