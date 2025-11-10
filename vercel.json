@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "buildCommand": "cd brique-36-ui-id/mobile && npm run build:web",
+  "outputDirectory": "brique-36-ui-id/mobile/dist",
+  "devCommand": "cd brique-36-ui-id/mobile && npm run start:web",
+  "framework": null,
+  "installCommand": "cd brique-36-ui-id/mobile && npm install",
+  "env": {
+    "EXPO_PUBLIC_API_URL": "http://192.168.1.22:3000"
+  },
+  "routes": [
+    {
+      "src": "/[^.]+",
+      "dest": "/",
+      "status": 200
+    }
+  ]
+}
