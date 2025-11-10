@@ -4,7 +4,7 @@ services:
     name: molam-id-api
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm ci && npm rebuild bcrypt --build-from-source
     startCommand: npm start
     envVars:
       - key: NODE_ENV
