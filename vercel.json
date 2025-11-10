@@ -1,17 +1,17 @@
 {
   "version": 2,
-  "buildCommand": "cd brique-36-ui-id/web && npm run build:web",
+  "buildCommand": "cd brique-36-ui-id/web && npm run build",
   "outputDirectory": "brique-36-ui-id/web/dist",
-  "devCommand": "cd brique-36-ui-id/web && npm run start:web",
-  "framework": null,
-  "installCommand": "cd brique-36-ui-id/web && npm install --legacy-peer-deps",
+  "devCommand": "cd brique-36-ui-id/web && npm run dev",
+  "framework": "vite",
+  "installCommand": "cd brique-36-ui-id/web && npm install",
   "env": {
-    "EXPO_PUBLIC_API_URL": "https://1234-abcd-5678.ngrok-free.app"
+    "VITE_API_URL": "https://1234-abcd-5678.ngrok-free.app"
   },
   "routes": [
     {
       "src": "/[^.]+",
-      "dest": "/",
+      "dest": "/index.html",
       "status": 200
     }
   ]
