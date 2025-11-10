@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useMolamId } from '../contexts/AuthContext';
 import { useTTS } from '../contexts/TTSContext';
 import { useTheme } from '../contexts/ThemeContext';
