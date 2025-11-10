@@ -6,7 +6,7 @@
   "framework": "vite",
   "installCommand": "cd brique-36-ui-id/web && npm install",
   "env": {
-    "VITE_API_URL": "https://doleful-steadiest-dallas.ngrok-free.dev"
+    "VITE_API_URL": "https://molam-id.onrender.com"
   },
   "routes": [
     {
