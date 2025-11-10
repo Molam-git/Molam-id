@@ -6,7 +6,7 @@
   "framework": null,
   "installCommand": "cd brique-36-ui-id/mobile && npm install --legacy-peer-deps",
   "env": {
-    "EXPO_PUBLIC_API_URL": "http://192.168.1.22:3000"
+    "EXPO_PUBLIC_API_URL": "https://1234-abcd-5678.ngrok-free.app"
   },
   "routes": [
     {
