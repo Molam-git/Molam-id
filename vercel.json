@@ -1,10 +1,10 @@
 {
   "version": 2,
-  "buildCommand": "cd brique-36-ui-id/mobile && npm run build:web",
-  "outputDirectory": "brique-36-ui-id/mobile/dist",
-  "devCommand": "cd brique-36-ui-id/mobile && npm run start:web",
+  "buildCommand": "cd brique-36-ui-id/web && npm run build:web",
+  "outputDirectory": "brique-36-ui-id/web/dist",
+  "devCommand": "cd brique-36-ui-id/web && npm run start:web",
   "framework": null,
-  "installCommand": "cd brique-36-ui-id/mobile && npm install --legacy-peer-deps",
+  "installCommand": "cd brique-36-ui-id/web && npm install --legacy-peer-deps",
   "env": {
     "EXPO_PUBLIC_API_URL": "https://1234-abcd-5678.ngrok-free.app"
   },
