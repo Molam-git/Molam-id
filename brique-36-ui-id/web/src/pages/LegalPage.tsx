@@ -42,7 +42,11 @@ export default function LegalPage() {
       setError('');
 
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${API_URL}/api/legal/${type}/fr`);
+      const response = await fetch(`${API_URL}/api/legal/${type}/fr`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
 
       if (!response.ok) {
         throw new Error('Document non trouvé');
