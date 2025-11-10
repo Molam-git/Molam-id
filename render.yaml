@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3000
+        value: 10000
       - key: DB_HOST
         sync: false
       - key: DB_PORT
@@ -25,10 +25,13 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
-    healthCheckPath: /health
+      - key: PASSWORD_PEPPER
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: http://localhost:3000,http://localhost:5173,https://molam-id-sbr1.vercel.app
+    healthCheckPath: /api/health
 
-  # PostgreSQL Database
-  - type: pserv
-    name: molam-id-db
+databases:
+  - name: molam-id-db
+    databaseName: molam
     plan: free
-    ipAllowList: []
