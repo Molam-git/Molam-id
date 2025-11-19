@@ -177,43 +177,9 @@ ALTER TABLE molam_users
 CREATE INDEX IF NOT EXISTS idx_users_user_type ON molam_users(user_type);
 CREATE INDEX IF NOT EXISTS idx_users_kyc_level ON molam_users(kyc_level);
 
--- 2. Mise à jour de la table molam_kyc_docs (si elle existe déjà)
-DROP TABLE IF EXISTS molam_kyc_docs CASCADE;
-CREATE TABLE molam_kyc_docs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id INTEGER REFERENCES molam_users(id) ON DELETE CASCADE,
-  doc_type TEXT NOT NULL,
-  storage_path TEXT NOT NULL,
-  storage_key_id TEXT,
-  content_hash TEXT NOT NULL,
-  ocr_data JSONB,
-  status TEXT DEFAULT 'pending',
-  uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
+-- 2. Mise à jour de la table molam_kyc_docs (supprimée car déjà créée plus haut dans le fichier)
 
-CREATE INDEX idx_kyc_docs_user ON molam_kyc_docs(user_id);
-CREATE INDEX idx_kyc_docs_status ON molam_kyc_docs(status);
-
--- 3. Mise à jour de la table molam_verification_codes
-DROP TABLE IF EXISTS molam_verification_codes CASCADE;
-CREATE TABLE molam_verification_codes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id INTEGER REFERENCES molam_users(id) ON DELETE CASCADE,
-  phone TEXT,
-  email TEXT,
-  code_hash TEXT NOT NULL,
-  channel TEXT NOT NULL,
-  purpose TEXT NOT NULL,
-  nonce TEXT,
-  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-  attempts INTEGER DEFAULT 0,
-  max_attempts INTEGER DEFAULT 3,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
-
-CREATE INDEX idx_verification_phone ON molam_verification_codes(phone);
-CREATE INDEX idx_verification_email ON molam_verification_codes(email);
-CREATE INDEX idx_verification_expires ON molam_verification_codes(expires_at);
+-- 3. Mise à jour de la table molam_verification_codes (supprimée car déjà créée plus haut dans le fichier)
 
 -- 4. Mise à jour de la table molam_sessions
 ALTER TABLE molam_sessions
@@ -223,10 +189,7 @@ ALTER TABLE molam_sessions
 CREATE INDEX IF NOT EXISTS idx_sessions_device ON molam_sessions(device_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON molam_sessions(expires_at);
 
--- 5. Mise à jour de molam_roles
-ALTER TABLE molam_roles
-  ADD COLUMN IF NOT EXISTS granted_by INTEGER REFERENCES molam_users(id),
-  ADD COLUMN IF NOT EXISTS granted_at TIMESTAMP WITH TIME ZONE DEFAULT now();
+-- 5. Mise à jour de molam_roles - SUPPRIMÉ car molam_roles est créé plus loin dans le fichier avec les bonnes colonnes
 
 -- 6. Table de rate limiting (alternative à Redis pour démarrer)
 CREATE TABLE IF NOT EXISTS molam_rate_limits (
@@ -567,10 +530,7 @@ COMMENT ON TABLE molam_role_permissions IS 'Association entre rôles et permissi
 -- ============================================================================
 -- Brique 9 — AuthZ ext_authz / Envoy integration (OPA-based)
 -- ============================================================================
--- Centralized authorization for all Molam modules
--- RBAC (Role-Based Access Control) + ABAC (Attribute-Based Access Control)
--- Integration with Envoy ext_authz for distributed authorization
--- SIRA score integration for dynamic risk-based access control
+-- Tables additionnelles pour AuthZ (complémentaires à la Brique 6)
 -- ============================================================================
 
 -- ============================================================================
@@ -600,19 +560,17 @@ CREATE INDEX IF NOT EXISTS idx_molam_roles_expires_at ON molam_roles(expires_at)
 -- ============================================================================
 -- Table: molam_attributes
 -- Purpose: Store dynamic user attributes for ABAC (Attribute-Based Access Control)
--- Examples: device_type=android, location=dakar, kyc_level=P2, last_login_country=SN
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS molam_attributes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES molam_users(id) ON DELETE CASCADE,
-  key TEXT NOT NULL, -- attribute name (e.g., 'device_type', 'kyc_level', 'country')
-  value TEXT NOT NULL, -- attribute value (e.g., 'android', 'P2', 'SN')
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now(),
   created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, key) -- One value per key per user
+  UNIQUE(user_id, key)
 );
 
--- Indexes for attribute lookups
 CREATE INDEX IF NOT EXISTS idx_molam_attributes_user_id ON molam_attributes(user_id);
 CREATE INDEX IF NOT EXISTS idx_molam_attributes_key ON molam_attributes(key);
 CREATE INDEX IF NOT EXISTS idx_molam_attributes_user_key ON molam_attributes(user_id, key);
@@ -620,79 +578,30 @@ CREATE INDEX IF NOT EXISTS idx_molam_attributes_user_key ON molam_attributes(use
 -- ============================================================================
 -- Table: molam_authz_audit
 -- Purpose: Immutable audit log of all authorization decisions
--- Every allow/deny decision is logged with full context
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS molam_authz_audit (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID, -- NULL for unauthenticated requests
-  molam_id TEXT, -- User's public Molam ID
-  module TEXT NOT NULL, -- pay, eats, ads, etc.
-  action TEXT NOT NULL, -- transfer, read, create, delete, etc.
-  resource TEXT, -- Specific resource being accessed (e.g., /api/pay/transfer)
+  user_id UUID,
+  molam_id TEXT,
+  module TEXT NOT NULL,
+  action TEXT NOT NULL,
+  resource TEXT,
   decision TEXT NOT NULL CHECK (decision IN ('allow', 'deny')),
-  reason TEXT, -- Why was this decision made
-  policy_version TEXT NOT NULL, -- Version of policy applied (e.g., 'v1.0')
-  context JSONB DEFAULT '{}', -- Full request context (device, IP, headers, etc.)
-  sira_score INTEGER, -- SIRA risk score at time of decision
-  latency_ms INTEGER, -- Decision latency in milliseconds
-  cache_hit BOOLEAN DEFAULT false, -- Was this served from cache
+  reason TEXT,
+  policy_version TEXT NOT NULL,
+  context JSONB DEFAULT '{}',
+  sira_score INTEGER,
+  latency_ms INTEGER,
+  cache_hit BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Indexes for audit queries
 CREATE INDEX IF NOT EXISTS idx_molam_authz_audit_user_id ON molam_authz_audit(user_id);
 CREATE INDEX IF NOT EXISTS idx_molam_authz_audit_module ON molam_authz_audit(module);
 CREATE INDEX IF NOT EXISTS idx_molam_authz_audit_decision ON molam_authz_audit(decision);
 CREATE INDEX IF NOT EXISTS idx_molam_authz_audit_created_at ON molam_authz_audit(created_at);
 CREATE INDEX IF NOT EXISTS idx_molam_authz_audit_user_module ON molam_authz_audit(user_id, module, created_at);
-
--- Composite index for common queries (user + module + time range)
-CREATE INDEX IF NOT EXISTS idx_molam_authz_audit_composite
-  ON molam_authz_audit(user_id, module, decision, created_at DESC);
-
--- ============================================================================
--- Table: molam_authz_cache
--- Purpose: Cache authorization decisions for performance (<5ms response time)
--- TTL-based expiration, invalidated on role/attribute changes
--- ============================================================================
-CREATE TABLE IF NOT EXISTS molam_authz_cache (
-  cache_key TEXT PRIMARY KEY, -- SHA256(user_id + module + action + context)
-  user_id UUID NOT NULL REFERENCES molam_users(id) ON DELETE CASCADE,
-  module TEXT NOT NULL,
-  action TEXT NOT NULL,
-  decision TEXT NOT NULL CHECK (decision IN ('allow', 'deny')),
-  reason TEXT,
-  policy_version TEXT NOT NULL,
-  context_hash TEXT NOT NULL, -- Hash of context for invalidation
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Indexes for cache lookups and cleanup
-CREATE INDEX IF NOT EXISTS idx_molam_authz_cache_user_id ON molam_authz_cache(user_id);
-CREATE INDEX IF NOT EXISTS idx_molam_authz_cache_expires_at ON molam_authz_cache(expires_at);
-
--- ============================================================================
--- Table: molam_policies
--- Purpose: Store OPA-style policies with versioning
--- Policies define authorization rules in a structured format
--- ============================================================================
-CREATE TABLE IF NOT EXISTS molam_policies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE, -- policy name (e.g., 'pay_transfer_kyc_p2')
-  version TEXT NOT NULL, -- version (e.g., 'v1.0', 'v2.1')
-  module TEXT NOT NULL, -- which module this policy applies to
-  description TEXT,
-  policy_content JSONB NOT NULL, -- Policy rules in JSON format
-  is_active BOOLEAN DEFAULT true,
-  priority INTEGER DEFAULT 100, -- Higher priority = evaluated first
-  created_by UUID REFERENCES molam_users(id),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_molam_policies_module ON molam_policies(module);
-CREATE INDEX IF NOT EXISTS idx_molam_policies_active ON molam_policies(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_molam_authz_audit_composite ON molam_authz_audit(user_id, module, decision, created_at DESC);
 
 -- ============================================================================
 -- Table: molam_role_hierarchy
@@ -700,8 +609,8 @@ CREATE INDEX IF NOT EXISTS idx_molam_policies_active ON molam_policies(is_active
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS molam_role_hierarchy (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  parent_scope TEXT NOT NULL, -- e.g., 'admin'
-  child_scope TEXT NOT NULL, -- e.g., 'write'
+  parent_scope TEXT NOT NULL,
+  child_scope TEXT NOT NULL,
   module TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(parent_scope, child_scope, module)
@@ -725,6 +634,8 @@ INSERT INTO molam_role_hierarchy (parent_scope, child_scope, module) VALUES
   ('write', 'read', 'id')
 ON CONFLICT DO NOTHING;
 
+-- NOTE: molam_authz_cache et molam_policies sont déjà créés dans la Brique 6
+
 -- ============================================================================
 -- Function: invalidate_authz_cache
 -- Purpose: Invalidate cache when user roles or attributes change
@@ -738,16 +649,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers to auto-invalidate cache
-DROP TRIGGER IF EXISTS trigger_invalidate_cache_on_role_change ON molam_roles;
-CREATE TRIGGER trigger_invalidate_cache_on_role_change
-  AFTER INSERT OR UPDATE OR DELETE ON molam_roles
-  FOR EACH ROW EXECUTE FUNCTION invalidate_authz_cache();
-
-DROP TRIGGER IF EXISTS trigger_invalidate_cache_on_attr_change ON molam_attributes;
-CREATE TRIGGER trigger_invalidate_cache_on_attr_change
-  AFTER INSERT OR UPDATE OR DELETE ON molam_attributes
-  FOR EACH ROW EXECUTE FUNCTION invalidate_authz_cache();
+-- NOTE: Les triggers sont créés à la fin du fichier après la création de toutes les tables
 
 -- ============================================================================
 -- Function: cleanup_expired_cache
@@ -804,48 +706,81 @@ COMMENT ON TABLE molam_policies IS 'OPA-style policies with versioning';
 COMMENT ON TABLE molam_role_hierarchy IS 'Role inheritance definitions';
 
 -- ============================================================================
--- Sample data for testing
+-- Sample data for testing (exemples de policies)
 -- ============================================================================
--- Sample policy: Pay transfer requires KYC P2 and SIRA score >= 70
-INSERT INTO molam_policies (name, version, module, description, policy_content, priority) VALUES
-(
-  'pay_transfer_kyc_sira',
-  'v1.0',
-  'pay',
-  'Requires KYC P2+ and SIRA score >= 70 for transfers',
-  '{
-    "rules": [
-      {
-        "condition": "kyc_level IN (''P2'', ''P3'')",
-        "sira_threshold": 70,
-        "action": "transfer",
-        "effect": "allow"
-      }
-    ]
-  }'::JSONB,
-  100
-)
-ON CONFLICT (name) DO NOTHING;
+-- NOTE: Les exemples de policies ont été supprimés car la structure de molam_policies
+-- dans la Brique 6 ne correspond pas aux champs utilisés ici.
+-- La table molam_policies existe déjà avec les champs: name, module, effect, priority, condition, resources, actions, enabled
 
--- Sample policy: Business hours restriction
-INSERT INTO molam_policies (name, version, module, description, policy_content, priority) VALUES
-(
-  'business_hours_restriction',
-  'v1.0',
-  'pay',
-  'Restrict high-value transfers outside business hours (6-20)',
-  '{
-    "rules": [
-      {
-        "condition": "EXTRACT(HOUR FROM NOW()) BETWEEN 6 AND 20",
-        "action": "transfer_high_value",
-        "effect": "allow"
-      }
-    ]
-  }'::JSONB,
-  90
-)
-ON CONFLICT (name) DO NOTHING;
+-- ============================================================================
+-- Création des triggers (après toutes les tables)
+-- ============================================================================
+
+-- Triggers to auto-invalidate cache
+DROP TRIGGER IF EXISTS trigger_invalidate_cache_on_role_change ON molam_roles;
+CREATE TRIGGER trigger_invalidate_cache_on_role_change
+  AFTER INSERT OR UPDATE OR DELETE ON molam_roles
+  FOR EACH ROW EXECUTE FUNCTION invalidate_authz_cache();
+
+DROP TRIGGER IF EXISTS trigger_invalidate_cache_on_attr_change ON molam_attributes;
+CREATE TRIGGER trigger_invalidate_cache_on_attr_change
+  AFTER INSERT OR UPDATE OR DELETE ON molam_attributes
+  FOR EACH ROW EXECUTE FUNCTION invalidate_authz_cache();
+
+-- ============================================================================
+-- Tables additionnelles pour compatibilité avec les briques
+-- ============================================================================
+
+-- Table pour KYC requests (brique 8)
+CREATE TABLE IF NOT EXISTS molam_kyc_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES molam_users(id) ON DELETE CASCADE,
+  requested_level TEXT NOT NULL DEFAULT 'P1',
+  status TEXT NOT NULL DEFAULT 'pending',
+  reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kyc_requests_user_id ON molam_kyc_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_kyc_requests_status ON molam_kyc_requests(status);
+
+-- Table pour les tenants (brique 23)
+CREATE TABLE IF NOT EXISTS molam_tenants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Vue pour sessions actives (brique 24)
+CREATE OR REPLACE VIEW molam_sessions_active AS
+SELECT * FROM molam_sessions
+WHERE expires_at > NOW();
+
+-- Table pour les profils utilisateurs (briques 29/30/32)
+CREATE TABLE IF NOT EXISTS molam_user_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES molam_users(id) ON DELETE CASCADE,
+  display_name TEXT,
+  avatar_url TEXT,
+  bio TEXT,
+  preferences JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON molam_user_profiles(user_id);
+
+-- Ajouter colonnes manquantes à molam_users (avec IF NOT EXISTS)
+ALTER TABLE molam_users ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE molam_users ADD COLUMN IF NOT EXISTS last_name TEXT;
+ALTER TABLE molam_users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+-- Ajouter colonnes manquantes à molam_permissions
+ALTER TABLE molam_permissions ADD COLUMN IF NOT EXISTS code TEXT;
 
 -- ============================================================================
 -- End of Brique 9 Schema

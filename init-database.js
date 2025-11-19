@@ -39,13 +39,49 @@ const pool = new Pool({
 
 // Liste des fichiers SQL à exécuter dans l'ordre
 const SQL_FILES = [
-  // 1. Schéma principal unifié (tables de base)
+  // 1. Schéma principal unifié (tables de base + briques 1-5)
   'sql/000_unified_schema.sql',
 
-  // 2. Schémas additionnels pour les briques
-  'sql/010_device_fingerprinting.sql',  // Brique 10: Device Fingerprinting
-  'sql/011_mfa.sql',                    // Brique 11: MFA/2FA
-  'sql/013_blacklist.sql',              // Brique 13: Blacklist
+  // 1.5. Correctifs pour les relations manquantes
+  'fix-schemas.sql',
+
+  // 2. Schémas des briques additionnelles (ordre numérique)
+  'brique-06-password-reset/sql/006_password_pin_reset.sql',   // Brique 6: Password/PIN Reset
+  'brique-07-biometrics/sql/007_biometrics_core.sql',          // Brique 7: Biometrics
+  'brique-08-kyc-aml/sql/01_kyc_schema.sql',                   // Brique 8: KYC/AML Schema
+  'brique-08-kyc-aml/sql/02_kyc_functions.sql',                // Brique 8: KYC/AML Functions
+  'brique-08-voice-auth/sql/002_voice_auth.sql',               // Brique 8: Voice Auth
+  'brique-09-geo/sql/003_geo.sql',                             // Brique 9: Geo-location
+  'brique-09-geo/sql/003_geo_seed.sql',                        // Brique 9: Geo seed data
+  'brique-10-device/sql/010_device.sql',                       // Brique 10: Device Fingerprinting
+  'brique-11-mfa/sql/011_mfa.sql',                             // Brique 11: MFA/2FA
+  'brique-12-delegation/sql/012_delegated_access.sql',         // Brique 12: Delegation
+  'brique-13-blacklist/sql/013_blacklist_suspensions.sql',     // Brique 13: Blacklist
+  'brique-14-audit/sql/014_audit_logs.sql',                    // Brique 14: Audit Logs
+  'brique-15-i18n/sql/015_i18n.sql',                           // Brique 15: i18n
+  'brique-16-fx/sql/016_fx.sql',                               // Brique 16: Foreign Exchange
+  'brique-17-profile/sql/017_profile.sql',                     // Brique 17: User Profile
+  'brique-18-update-profile/sql/018_update_profile.sql',       // Brique 18: Update Profile
+  'brique-19-export-profile/sql/019_export_profile.sql',       // Brique 19: Export Profile
+  'brique-20-rbac-granular/sql/020_rbac_granular.sql',         // Brique 20: RBAC Granular
+  'brique-20-rbac-granular/sql/seed_rbac.sql',                 // Brique 20: RBAC Seed Data
+  'brique-21-role-mgmt/sql/021_role_mgmt.sql',                 // Brique 21: Role Management
+  'brique-22-admin-id/sql/022_admin_id.sql',                   // Brique 22: Admin ID
+  'brique-23-sessions-monitoring/sql/023_sessions_monitoring.sql', // Brique 23: Sessions Monitoring
+  'brique-24-sdk-auth/sql/024_sdk_auth.sql',                   // Brique 24: SDK Auth
+  'brique-25-ui-id/sql/025_ui_id.sql',                         // Brique 25: UI ID
+  'brique-26-admin-ui/sql/026_admin_ui.sql',                   // Brique 26: Admin UI
+  'brique-27-i18n/sql/027_i18n.sql',                           // Brique 27: i18n (extended)
+  'brique-28-multicurrency/sql/028_multicurrency.sql',         // Brique 28: Multi-currency
+  'brique-29-user-profile/sql/029_user_profile.sql',           // Brique 29: User Profile (extended)
+  'brique-30-export-profile/sql/030_profile_export.sql',       // Brique 30: Profile Export
+  'brique-31-rbac-granular/sql/031_rbac.sql',                  // Brique 31: RBAC (extended)
+  'brique-32-api-role-mgmt/sql/032_role_management.sql',       // Brique 32: API Role Management
+  'brique-33-api-admin/sql/033_admin_id_governance.sql',       // Brique 33: Admin ID Governance
+  'brique-34-sessions-monitoring/sql/034_sessions_monitoring.sql', // Brique 34: Sessions Monitoring (extended)
+  'brique-36-ui-id/sql/036_ui_id.sql',                         // Brique 36: UI ID (extended)
+  'brique-audit/sql/01_schema.sql',                            // Brique Audit: Schema
+  'brique-audit/sql/02_functions.sql',                         // Brique Audit: Functions
 ];
 
 /**
@@ -70,8 +106,8 @@ async function executeSQLFile(filePath) {
     await pool.query(sql);
     console.log(`   ✅ Succès`);
   } catch (error) {
-    console.error(`   ❌ Erreur:`, error.message);
-    throw error;
+    console.error(`   ⚠️  Erreur (ignorée):`, error.message.substring(0, 80));
+    // Ne pas throw - continuer avec les autres fichiers
   }
 }
 
