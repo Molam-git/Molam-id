@@ -56,3 +56,7 @@ coverage/
 
 # Docker volumes
 postgres-data/
+
+# Uploaded files
+public/uploads/profile-photos/*
+!public/uploads/profile-photos/.gitkeep

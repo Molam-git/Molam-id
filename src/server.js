@@ -78,9 +78,31 @@ import {
   revokeRoleHandler,
 } from "./routes/authz/roles.js";
 
+// Routes Admin (User & Role Management)
+import {
+  listUsersHandler,
+  getUserStatsHandler,
+  getUserByIdHandler,
+  createUserHandler,
+  updateUserHandler,
+  deleteUserHandler,
+  suspendUserHandler,
+  activateUserHandler,
+  getUserAuditHandler,
+  listRolesHandler,
+  assignRoleToUserHandler,
+  revokeRoleFromUserHandler,
+  getUserRolesAdminHandler,
+  createRoleHandler,
+  deleteRoleHandler,
+  uploadUserPhotoHandler,
+  deleteUserPhotoHandler
+} from "./routes/admin/index.js";
+
 // Middlewares
 import { requireAuth } from "./middlewares/auth.js";
 import { requireRole } from "./middlewares/authzEnforce.js";
+import { uploadProfilePhoto } from "./config/multer.js";
 
 dotenv.config();
 
@@ -129,6 +151,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Trust proxy (pour récupérer la vraie IP derrière le gateway)
 app.set('trust proxy', true);
 
+// Serve static files for admin interface
+app.use('/admin', express.static('public/admin'));
+
+// Serve uploaded files (profile photos)
+app.use('/uploads', express.static('public/uploads'));
+
 // Request ID & Logging
 app.use((req, res, next) => {
   req.id = req.headers['x-request-id'] || `req-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -153,7 +181,7 @@ app.get("/", (req, res) => {
     service: "Molam-ID Core",
     version: "1.0.0",
     status: "running",
-    briques: ["1-Auth", "2-Sessions", "3-JWT", "4-Onboarding", "5-LoginV2", "6-AuthZ", "6-Password", "10-Devices", "11-MFA", "13-Blacklist"],
+    briques: ["1-Auth", "2-Sessions", "3-JWT", "4-Onboarding", "5-LoginV2", "6-AuthZ", "6-Password", "10-Devices", "11-MFA", "13-Blacklist", "Admin"],
     timestamp: new Date().toISOString(),
     environment: NODE_ENV
   };
@@ -494,6 +522,34 @@ app.post("/v1/authz/users/:userId/roles", requireAuth, requireRole('id_admin'), 
 app.delete("/v1/authz/users/:userId/roles/:roleName", requireAuth, requireRole('id_admin'), revokeRoleHandler);
 
 // =============================================================================
+// ROUTES ADMIN (User & Role Management)
+// =============================================================================
+// Gestion complète des utilisateurs et des rôles (super_admin et admin uniquement)
+
+// User Management
+app.get("/api/admin/users", requireAuth, requireRole('super_admin'), listUsersHandler);
+app.get("/api/admin/users/stats", requireAuth, requireRole('super_admin'), getUserStatsHandler);
+app.get("/api/admin/users/:userId", requireAuth, requireRole('super_admin'), getUserByIdHandler);
+app.post("/api/admin/users", requireAuth, requireRole('super_admin'), createUserHandler);
+app.patch("/api/admin/users/:userId", requireAuth, requireRole('super_admin'), updateUserHandler);
+app.delete("/api/admin/users/:userId", requireAuth, requireRole('super_admin'), deleteUserHandler);
+app.post("/api/admin/users/:userId/suspend", requireAuth, requireRole('super_admin'), suspendUserHandler);
+app.post("/api/admin/users/:userId/activate", requireAuth, requireRole('super_admin'), activateUserHandler);
+app.get("/api/admin/users/:userId/audit", requireAuth, requireRole('super_admin'), getUserAuditHandler);
+
+// User Profile Photo Management
+app.post("/api/admin/users/:userId/upload-photo", requireAuth, requireRole('super_admin'), uploadProfilePhoto.single('photo'), uploadUserPhotoHandler);
+app.delete("/api/admin/users/:userId/photo", requireAuth, requireRole('super_admin'), deleteUserPhotoHandler);
+
+// Role Management
+app.get("/api/admin/roles", requireAuth, requireRole('super_admin'), listRolesHandler);
+app.post("/api/admin/roles", requireAuth, requireRole('super_admin'), createRoleHandler);
+app.delete("/api/admin/roles/:roleName", requireAuth, requireRole('super_admin'), deleteRoleHandler);
+app.get("/api/admin/users/:userId/roles", requireAuth, requireRole('super_admin'), getUserRolesAdminHandler);
+app.post("/api/admin/users/:userId/assign-role", requireAuth, requireRole('super_admin'), assignRoleToUserHandler);
+app.delete("/api/admin/users/:userId/revoke-role", requireAuth, requireRole('super_admin'), revokeRoleFromUserHandler);
+
+// =============================================================================
 // ERROR HANDLING
 // =============================================================================
 
@@ -529,7 +585,7 @@ const server = app.listen(PORT, () => {
   console.log('='.repeat(80));
   console.log(`📡 Server listening on port ${PORT}`);
   console.log(`🌍 Environment: ${NODE_ENV}`);
-  console.log(`📦 Briques: 1-5 (Auth Core), 6 (Password+AuthZ), 10 (Devices), 11 (MFA), 13 (Blacklist)`);
+  console.log(`📦 Briques: 1-5 (Auth Core), 6 (Password+AuthZ), 10 (Devices), 11 (MFA), 13 (Blacklist), Admin`);
   console.log(`⏰ Started at: ${new Date().toISOString()}`);
   console.log('='.repeat(80));
   console.log('\n📋 Available endpoints:');
@@ -584,6 +640,23 @@ const server = app.listen(PORT, () => {
   console.log('  GET  /v1/authz/users/:userId/permissions - Get user permissions');
   console.log('  POST /v1/authz/users/:userId/roles - Assign role (admin)');
   console.log('  DEL  /v1/authz/users/:userId/roles/:role - Revoke role (admin)');
+  console.log('\n👨‍💼 Admin - User Management (super_admin):');
+  console.log('  GET  /api/admin/users          - List all users');
+  console.log('  GET  /api/admin/users/stats    - Get user statistics');
+  console.log('  GET  /api/admin/users/:userId  - Get user details');
+  console.log('  POST /api/admin/users          - Create new user');
+  console.log('  PATCH /api/admin/users/:userId - Update user');
+  console.log('  DEL  /api/admin/users/:userId  - Delete user');
+  console.log('  POST /api/admin/users/:userId/suspend - Suspend user');
+  console.log('  POST /api/admin/users/:userId/activate - Activate user');
+  console.log('  GET  /api/admin/users/:userId/audit - Get user audit logs');
+  console.log('\n🎭 Admin - Role Management (super_admin):');
+  console.log('  GET  /api/admin/roles          - List all roles');
+  console.log('  POST /api/admin/roles          - Create new role');
+  console.log('  DEL  /api/admin/roles/:roleName - Delete role');
+  console.log('  GET  /api/admin/users/:userId/roles - Get user roles (detailed)');
+  console.log('  POST /api/admin/users/:userId/assign-role - Assign role to user');
+  console.log('  DEL  /api/admin/users/:userId/revoke-role - Revoke role from user');
   console.log('='.repeat(80));
 });
 

@@ -105,7 +105,7 @@ export async function loginV2(req, res) {
         user_id: user.id,
         molam_id: user.molam_id,
         email: user.email,
-        role: user.user_role
+        roles: user.role_profile || []
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
@@ -186,12 +186,13 @@ export async function loginV2(req, res) {
       expires_in: 900, // 15 minutes in seconds
       session_id: sessionId,
       user: {
+        user_id: user.id,
         id: user.id,
         molam_id: user.molam_id,
         email: user.email,
         phone: user.phone_e164,
         phone_number: user.phone_e164,
-        role: user.user_role,
+        roles: user.role_profile || [],
         kyc_status: user.kyc_status,
         created_at: user.created_at,
         profile: {

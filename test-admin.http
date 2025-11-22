@@ -1,0 +1,189 @@
+### =============================================================================
+### Tests Admin - Molam ID (localhost)
+### =============================================================================
+### Instructions:
+### 1. Assurez-vous que le serveur est démarré (npm start ou node src/server.js)
+### 2. Créez d'abord le super admin avec: node scripts/create-super-admin.js
+### 3. Exécutez les requêtes dans l'ordre
+### 4. Remplacez {{baseUrl}} par http://localhost:3001
+### 5. Remplacez {{token}} par votre access_token après login
+### =============================================================================
+
+@baseUrl = http://localhost:3000
+@email = admin@molam.sn
+@password = SuperSecure123!
+
+### =============================================================================
+### 1. VÉRIFIER QUE LE SERVEUR FONCTIONNE
+### =============================================================================
+
+GET {{baseUrl}}/
+Accept: application/json
+
+### =============================================================================
+### 2. LOGIN EN TANT QUE SUPER ADMIN
+### =============================================================================
+### Utilisez les identifiants créés avec create-super-admin.js
+
+# @name login
+POST {{baseUrl}}/api/id/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Extraire le token (pour VSCode REST Client)
+@token = {{login.response.body.access_token}}
+
+### =============================================================================
+### 3. VÉRIFIER LE RÔLE SUPER_ADMIN
+### =============================================================================
+
+GET {{baseUrl}}/v1/authz/users/{{login.response.body.user.user_id}}/roles
+Authorization: Bearer {{token}}
+
+### =============================================================================
+### 4. GESTION DES UTILISATEURS
+### =============================================================================
+
+### 4.1 Obtenir les statistiques
+GET {{baseUrl}}/api/admin/users/stats
+Authorization: Bearer {{token}}
+
+### 4.2 Lister tous les utilisateurs
+GET {{baseUrl}}/api/admin/users?page=1&limit=10
+Authorization: Bearer {{token}}
+
+### 4.3 Créer un nouvel utilisateur
+# @name createUser
+POST {{baseUrl}}/api/admin/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "testuser@molam.sn",
+  "phone": "+221771234567",
+  "password": "TestUser123!",
+  "roles": ["client"],
+  "status": "active",
+  "kycStatus": "none"
+}
+
+### Extraire l'ID du nouvel utilisateur
+@newUserId = {{createUser.response.body.user.id}}
+
+### 4.4 Obtenir les détails d'un utilisateur
+GET {{baseUrl}}/api/admin/users/{{newUserId}}
+Authorization: Bearer {{token}}
+
+### 4.5 Mettre à jour un utilisateur
+PATCH {{baseUrl}}/api/admin/users/{{newUserId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "kycStatus": "verified",
+  "status": "active"
+}
+
+### 4.6 Suspendre un utilisateur
+POST {{baseUrl}}/api/admin/users/{{newUserId}}/suspend
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "reason": "Test de suspension"
+}
+
+### 4.7 Activer un utilisateur
+POST {{baseUrl}}/api/admin/users/{{newUserId}}/activate
+Authorization: Bearer {{token}}
+
+### 4.8 Obtenir les logs d'audit d'un utilisateur
+GET {{baseUrl}}/api/admin/users/{{newUserId}}/audit?page=1&limit=50
+Authorization: Bearer {{token}}
+
+### =============================================================================
+### 5. GESTION DES RÔLES
+### =============================================================================
+
+### 5.1 Lister tous les rôles disponibles
+GET {{baseUrl}}/api/admin/roles
+Authorization: Bearer {{token}}
+
+### 5.2 Créer un nouveau rôle
+# @name createRole
+POST {{baseUrl}}/api/admin/roles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role_name": "test_role",
+  "module": "test",
+  "display_name": "Test Role",
+  "description": "Rôle de test créé pour la démo"
+}
+
+### 5.3 Obtenir les rôles d'un utilisateur
+GET {{baseUrl}}/api/admin/users/{{newUserId}}/roles
+Authorization: Bearer {{token}}
+
+### 5.4 Assigner un rôle à un utilisateur
+POST {{baseUrl}}/api/admin/users/{{newUserId}}/assign-role
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role_name": "merchant",
+  "module": "pay",
+  "trusted_level": 20
+}
+
+### 5.5 Révoquer un rôle d'un utilisateur
+DELETE {{baseUrl}}/api/admin/users/{{newUserId}}/revoke-role
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role_name": "merchant",
+  "module": "pay"
+}
+
+### 5.6 Supprimer un rôle (non-système uniquement)
+DELETE {{baseUrl}}/api/admin/roles/test_role
+Authorization: Bearer {{token}}
+
+### =============================================================================
+### 6. TESTS DE SÉCURITÉ
+### =============================================================================
+
+### 6.1 Tenter d'accéder sans token (doit échouer avec 401)
+GET {{baseUrl}}/api/admin/users
+
+### 6.2 Tenter de supprimer son propre compte (doit échouer avec 403)
+DELETE {{baseUrl}}/api/admin/users/{{login.response.body.user.user_id}}
+Authorization: Bearer {{token}}
+
+### 6.3 Tenter de révoquer son propre rôle super_admin (doit échouer avec 403)
+DELETE {{baseUrl}}/api/admin/users/{{login.response.body.user.user_id}}/revoke-role
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role_name": "super_admin",
+  "module": "*"
+}
+
+### =============================================================================
+### 7. NETTOYAGE (optionnel)
+### =============================================================================
+
+### 7.1 Supprimer l'utilisateur de test
+DELETE {{baseUrl}}/api/admin/users/{{newUserId}}
+Authorization: Bearer {{token}}
+
+### =============================================================================
+### FIN DES TESTS
+### =============================================================================
