@@ -1,0 +1,99 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# package-lock.json (NEEDED for npm ci in Dockerfile)
+
+# Testing
+coverage
+*.test.js
+*.spec.js
+test
+tests
+__tests__
+
+# Documentation
+*.md
+docs
+GUIDE_*.md
+README*.md
+QUICK_START*.md
+SPRINT_*.md
+BRIQUE*.md
+VERIFICATION_*.md
+TEST_*.md
+ADMIN_GUIDE.md
+ARCHITECTURE_*.md
+DEPLOYMENT_GUIDE.md
+INTEGRATION_*.md
+PLAN_*.md
+PROGRESS_*.md
+SYSTEM_*.md
+SUMMARY_*.md
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs
+*.log
+server.log
+
+# Scripts
+*.bat
+*.sh
+*.ps1
+
+# Temporary files
+tmp
+temp
+.tmp
+nul
+
+# SQL files - KEEP them for database initialization
+# *.sql
+# sql
+
+# Test files
+*.http
+test-*.js
+test-*.json
+test-*.txt
+
+# Build artifacts (for web UI)
+dist
+build
+.cache
+
+# Environment
+.env.local
+.env.*.local
+
+# Misc
+infra
+keys
+gateway
+# Exclude all brique-* folders except those needed for builds
+brique-*
+# BUT include these specific briques for Web UI build
+!brique-35-sdk-auth/
+!brique-36-ui-id/
+scripts
+render.yaml
+vercel.json

@@ -30,6 +30,17 @@
   margin-bottom: var(--spacing-xs);
 }
 
+.service-badge {
+   color: white;
+  transition: all 0.25s ease;
+}
+
+.service-badge:hover {
+  background-color: #08359c95; /* plus foncé */
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(30, 10, 155, 0.15);
+}
+
 .profile-subtitle {
   color: var(--color-text-muted);
   font-size: 1.125rem;

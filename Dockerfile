@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copier les fichiers de dépendances
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
 # Installer et rebuilder les modules natifs
 RUN npm ci && npm rebuild bcrypt --build-from-source

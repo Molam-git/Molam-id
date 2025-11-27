@@ -177,7 +177,9 @@ export default function ProfilePage() {
               {t('profile.services.description')}
             </p>
             <div className="services-grid">
-              <div className="service-badge">💰 Molam Pay</div>
+              <button className="service-badge" onClick={() => window.location.href = "http://localhost:3001/dashboard"}>
+              💰 Molam Pay
+              </button>
               <div className="service-badge">🍔 Molam Eats</div>
               <div className="service-badge">🛒 Molam Shop</div>
               <div className="service-badge">💬 Molam Talk</div>
