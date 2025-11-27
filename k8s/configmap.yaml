@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: molam-id-config
+  namespace: molam-id
+data:
+  # Server
+  NODE_ENV: "production"
+  PORT: "3000"
+  HOST: "0.0.0.0"
+
+  # Database
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "molam_id"
+  DB_USER: "postgres"
+  DB_POOL_MIN: "2"
+  DB_POOL_MAX: "20"
+
+  # Logging
+  LOG_LEVEL: "info"
+  LOG_PRETTY: "false"
+
+  # CORS
+  CORS_ORIGIN: "http://localhost:5173,https://id.molam.io"
+  CORS_CREDENTIALS: "true"
+
+  # Rate Limiting
+  RATE_LIMIT_WINDOW_MS: "60000"
+  RATE_LIMIT_MAX_REQUESTS: "100"

@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: molam-id-ingress
+  namespace: molam-id
+  annotations:
+    # Nginx Ingress Controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Uncomment for cert-manager (Let's Encrypt)
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx  # Adjust based on your ingress controller
+  rules:
+  # Web UI - Frontend
+  - host: id.molam.io  # IMPORTANT: Remplacez par votre domaine
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: molam-id-web-service
+            port:
+              number: 80
+
+  # API Backend
+  - host: api-id.molam.io  # IMPORTANT: Remplacez par votre domaine
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: molam-id-api-service
+            port:
+              number: 3000
+
+  # TLS configuration (uncomment when you have certificates)
+  # tls:
+  # - hosts:
+  #   - id.molam.io
+  #   - api-id.molam.io
+  #   secretName: molam-id-tls

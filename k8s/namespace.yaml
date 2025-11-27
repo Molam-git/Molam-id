@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: molam-id
+  labels:
+    name: molam-id
+    app: molam-id
