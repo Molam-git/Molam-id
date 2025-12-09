@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext';
 import './Footer.css';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const { t } = useLanguage();
 
   return (
     <footer className="footer" role="contentinfo">
@@ -11,64 +13,52 @@ export default function Footer() {
           <div className="footer-section">
             <h3 className="footer-title">Molam ID</h3>
             <p className="footer-description">
-              Votre identité numérique sécurisée pour l'écosystème Molam
+              {t('footer.description')}
             </p>
           </div>
 
           <div className="footer-section">
-            <h4 className="footer-subtitle">Légal</h4>
-            <nav className="footer-links" aria-label="Liens légaux">
+            <h4 className="footer-subtitle">{t('footer.legal')}</h4>
+            <nav className="footer-links" aria-label={t('footer.legal.aria')}>
               <Link to="/legal/cgu" className="footer-link">
-                Conditions Générales d'Utilisation
+                {t('footer.legal.terms')}
               </Link>
               <Link to="/legal/privacy" className="footer-link">
-                Politique de Confidentialité
+                {t('footer.legal.privacy')}
               </Link>
               <Link to="/legal/legal" className="footer-link">
-                Mentions Légales
+                {t('footer.legal.legal')}
               </Link>
               <Link to="/legal/cookies" className="footer-link">
-                Politique des Cookies
+                {t('footer.legal.cookies')}
               </Link>
               <Link to="/legal/data_protection" className="footer-link">
-                Protection des Données
+                {t('footer.legal.data')}
               </Link>
             </nav>
           </div>
 
           <div className="footer-section">
-            <h4 className="footer-subtitle">Support</h4>
+            <h4 className="footer-subtitle">{t('footer.support')}</h4>
             <div className="footer-links">
               <a href="https://support.molam.sn" className="footer-link" target="_blank" rel="noopener noreferrer">
-                Centre d'aide
+                {t('footer.support.help')}
               </a>
               <a href="mailto:support@molam.sn" className="footer-link">
-                Nous contacter
+                {t('footer.support.contact')}
               </a>
-            </div>
-          </div>
-
-          <div className="footer-section">
-            <h4 className="footer-subtitle">Langues</h4>
-            <div className="footer-languages">
-              <button className="footer-language active" aria-label="Français">🇫🇷 FR</button>
-              <button className="footer-language" aria-label="English">🇬🇧 EN</button>
-              <button className="footer-language" aria-label="Wolof">WO</button>
-              <button className="footer-language" aria-label="العربية">🇸🇦 AR</button>
-              <button className="footer-language" aria-label="Español">🇪🇸 ES</button>
-              <button className="footer-language" aria-label="Português">🇵🇹 PT</button>
             </div>
           </div>
         </div>
 
         <div className="footer-bottom">
           <p className="footer-copyright">
-            &copy; {currentYear} Molam. Tous droits réservés.
+            &copy; {currentYear} Molam. {t('footer.rights')}
           </p>
           <div className="footer-badges">
-            <span className="footer-badge" title="Conforme RGPD">🔒 RGPD</span>
-            <span className="footer-badge" title="Sécurisé">🛡️ Sécurisé</span>
-            <span className="footer-badge" title="Made in Senegal">🇸🇳 Made in SN</span>
+            <span className="footer-badge" title={t('footer.badge.gdpr')}>🔒 RGPD</span>
+            <span className="footer-badge" title={t('footer.badge.secure')}>🛡️ {t('footer.badge.secure')}</span>
+            <span className="footer-badge" title={t('footer.badge.senegal')}>US Made in USA</span>
           </div>
         </div>
       </div>

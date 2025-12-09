@@ -5,6 +5,7 @@ interface User {
   phone_number?: string;
   email?: string;
   created_at?: string;
+  profile_picture_url?: string;
   profile?: {
     given_name?: string;
     family_name?: string;
@@ -19,6 +20,8 @@ interface AuthContextType {
   signup: (data: any) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateProfile: (data: { firstName?: string; lastName?: string; email?: string; phone?: string }) => Promise<void>;
+  uploadProfilePicture: (file: File) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -92,7 +95,7 @@ export function MolamIdProvider({ children }: { children: ReactNode }) {
 
       console.log('🔐 Login with:', loginData);
 
-      const response = await fetch(`${API_URL}/api/id/auth/login`, {
+      const response = await fetch(`${API_URL}/api/id/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,17 +113,18 @@ export function MolamIdProvider({ children }: { children: ReactNode }) {
       console.log('🔐 Login response data:', data);
 
       // Store tokens in localStorage
-      localStorage.setItem('access_token', data.access_token || data.tokens?.accessToken);
+      localStorage.setItem('access_token', data.token || data.access_token || data.tokens?.accessToken);
       localStorage.setItem('refresh_token', data.refresh_token || data.tokens?.refreshToken);
 
       const userData = {
         id: data.user?.id || data.user_id,
         phone_number: data.user?.phone_number || data.user?.phone,
         email: data.user?.email,
-        created_at: data.user?.created_at,
+        created_at: data.user?.created_at || data.user?.createdAt,
+        profile_picture_url: data.user?.profilePictureUrl,
         profile: {
-          given_name: data.user?.profile?.given_name,
-          family_name: data.user?.profile?.family_name,
+          given_name: data.user?.firstName || data.user?.profile?.given_name,
+          family_name: data.user?.lastName || data.user?.profile?.family_name,
         },
       };
 
@@ -138,7 +142,7 @@ export function MolamIdProvider({ children }: { children: ReactNode }) {
     try {
       console.log('📝 Signup request data:', data);
 
-      const response = await fetch(`${API_URL}/api/id/auth/signup`, {
+      const response = await fetch(`${API_URL}/api/id/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -164,9 +168,10 @@ export function MolamIdProvider({ children }: { children: ReactNode }) {
         phone_number: result.user?.phone_number || result.user?.phone,
         email: result.user?.email,
         created_at: result.user?.created_at || result.user?.createdAt,
+        profile_picture_url: result.user?.profilePictureUrl,
         profile: {
-          given_name: result.user?.profile?.given_name,
-          family_name: result.user?.profile?.family_name,
+          given_name: result.user?.firstName || result.user?.profile?.given_name,
+          family_name: result.user?.lastName || result.user?.profile?.family_name,
         },
       };
 
@@ -188,6 +193,100 @@ export function MolamIdProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
   };
 
+  const updateProfile = async (data: { firstName?: string; lastName?: string; email?: string; phone?: string }) => {
+    try {
+      const token = localStorage.getItem('access_token');
+
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`${API_URL}/api/id/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Update failed');
+      }
+
+      const result = await response.json();
+
+      // Update local user data
+      const userData = {
+        id: result.user?.id,
+        phone_number: result.user?.phone,
+        email: result.user?.email,
+        created_at: result.user?.createdAt,
+        profile_picture_url: result.user?.profilePictureUrl,
+        profile: {
+          given_name: result.user?.firstName,
+          family_name: result.user?.lastName,
+        },
+      };
+
+      localStorage.setItem('user_data', JSON.stringify(userData));
+      setUser(userData);
+    } catch (error: any) {
+      console.error('Update profile error:', error);
+      throw error;
+    }
+  };
+
+  const uploadProfilePicture = async (file: File) => {
+    try {
+      const token = localStorage.getItem('access_token');
+
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
+      const formData = new FormData();
+      formData.append('picture', file);
+
+      const response = await fetch(`${API_URL}/api/id/profile/picture`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+
+      // Update local user data
+      const userData = {
+        id: result.user?.id,
+        phone_number: result.user?.phone,
+        email: result.user?.email,
+        created_at: result.user?.createdAt,
+        profile_picture_url: result.user?.profilePictureUrl,
+        profile: {
+          given_name: result.user?.firstName,
+          family_name: result.user?.lastName,
+        },
+      };
+
+      localStorage.setItem('user_data', JSON.stringify(userData));
+      setUser(userData);
+    } catch (error: any) {
+      console.error('Upload profile picture error:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -198,6 +297,8 @@ export function MolamIdProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         refreshUser,
+        updateProfile,
+        uploadProfilePicture,
       }}
     >
       {children}

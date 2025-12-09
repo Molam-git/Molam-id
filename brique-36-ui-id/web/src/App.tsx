@@ -7,9 +7,11 @@ import Navigation from './components/Navigation';
 import Footer from './components/Footer';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import SessionsPage from './pages/SessionsPage';
 import LegalPage from './pages/LegalPage';
+import AdminDashboard from './pages/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -25,6 +27,7 @@ function App() {
                   <Route path="/" element={<Navigate to="/profile" replace />} />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/signup" element={<SignupPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                   <Route
                     path="/profile"
                     element={
@@ -38,6 +41,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <SessionsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin"
+                    element={
+                      <ProtectedRoute>
+                        <AdminDashboard />
                       </ProtectedRoute>
                     }
                   />
